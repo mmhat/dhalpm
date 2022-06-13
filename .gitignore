@@ -1,0 +1,5 @@
+.hspec-failures
+dist-newstyle/
+cabal.project.local
+/test/.out/
+/test/packages/*/pkg/

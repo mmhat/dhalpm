@@ -1,0 +1,9 @@
+pkgbase = depmissing-package
+	pkgdesc = A package with unsatisfiable dependencies
+	pkgver = 1
+	pkgrel = 1
+	arch = any
+	depends = bash
+
+pkgname = depmissing-package
+

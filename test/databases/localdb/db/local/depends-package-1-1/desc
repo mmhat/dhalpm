@@ -1,0 +1,33 @@
+%NAME%
+depends-package
+
+%VERSION%
+1-1
+
+%BASE%
+depends-package
+
+%DESC%
+A test package with dependency
+
+%URL%
+
+
+%ARCH%
+any
+
+%BUILDDATE%
+1655125165
+
+%INSTALLDATE%
+1655125228
+
+%PACKAGER%
+Unknown Packager
+
+%VALIDATION%
+none
+
+%DEPENDS%
+test-package
+

@@ -1,0 +1,12 @@
+# Maintainer: maintainer <maintainer@localhost>
+
+pkgname=depmissing-package
+pkgver=1
+pkgrel=1
+pkgdesc="A package with unsatisfiable dependencies"
+arch=(any)
+depends=(missing-package)
+
+package() {
+	true
+}

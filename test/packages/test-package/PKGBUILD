@@ -1,0 +1,12 @@
+# Maintainer: maintainer <maintainer@localhost>
+
+pkgname=test-package
+pkgver=1
+pkgrel=1
+pkgdesc="A test package"
+arch=(any)
+
+package() {
+    mkdir "$pkgdir/testdir"
+    touch "$pkgdir/file1" "$pkgdir/file2"
+}

@@ -1,0 +1,10 @@
+cradle:
+  cabal:
+    - path: "./src"
+      component: "lib:dhalpm"
+
+    - path: "./app/dhalpm/Main.hs"
+      component: "dhalpm:exe:dhalpm"
+
+    - path: "./test"
+      component: "dhalpm:test:test"

@@ -1,0 +1,12 @@
+# Maintainer: maintainer <maintainer@localhost>
+
+pkgname=providers-2
+pkgver=1
+pkgrel=1
+pkgdesc="Another package that provides something"
+arch=(any)
+provides=('providers')
+
+package() {
+    true
+}

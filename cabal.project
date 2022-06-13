@@ -1,0 +1,10 @@
+packages:
+  ./
+
+with-compiler: ghc-9.2
+
+--source-repository-package
+--  type: git
+--  location: URL
+--  tag: TAG
+--  subdir: DIRS

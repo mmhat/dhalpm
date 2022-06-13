@@ -1,0 +1,30 @@
+%NAME%
+test-package
+
+%VERSION%
+1-1
+
+%BASE%
+test-package
+
+%DESC%
+A test package
+
+%URL%
+
+
+%ARCH%
+any
+
+%BUILDDATE%
+1655125217
+
+%INSTALLDATE%
+1655125228
+
+%PACKAGER%
+Unknown Packager
+
+%VALIDATION%
+none
+
