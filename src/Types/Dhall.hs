@@ -3,32 +3,35 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
-
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Types.Dhall where
 
+import Data.Either.Validation (Validation (..))
+import Dhall hiding (normalizer)
 import RIO
 
-import qualified Data.Default.Class as DC
-import Data.Either.Validation (Validation(..))
-import Dhall hiding (normalizer)
-import qualified Dhall.Core
-import qualified Dhall.Map
-import qualified Dhall.Src
-import qualified RIO.Text as T
+import Data.Default.Class qualified as DC
+import Dhall.Core qualified
+import Dhall.Map qualified
+import Dhall.Src qualified
+import RIO.Text qualified as T
 
-import Archlinux.Alpm (AlpmPkgName, emptyAlpmPkgName, parseAlpmPkgName, unAlpmPkgName)
+import Archlinux.Alpm (
+    AlpmPkgName,
+    emptyAlpmPkgName,
+    parseAlpmPkgName,
+    unAlpmPkgName,
+ )
 
 default (Text)
-
-
 
 data Config = Config
     { rootDir :: FilePath
     , databaseDir :: FilePath
     , packages :: Vector Package
-    } deriving (Generic, Show)
+    }
+    deriving (Generic, Show)
 
 instance FromDhall Config
 instance ToDhall Config
@@ -41,21 +44,23 @@ data Package = Package
     , databases :: Vector Database
     , providers :: [Text]
     , build :: Maybe Build
-    } deriving (Generic, Show)
+    }
+    deriving (Generic, Show)
 
 instance FromDhall Package
 instance ToDhall Package
 
 instance DC.Default Package where
-    def = Package
-        { name = emptyAlpmPkgName
-        , versions  = DC.def
-        , sigcheck  = DC.def
-        , sigtrust  = DC.def
-        , databases = mempty
-        , providers = mempty
-        , build     = Nothing
-        }
+    def =
+        Package
+            { name = emptyAlpmPkgName
+            , versions = DC.def
+            , sigcheck = DC.def
+            , sigtrust = DC.def
+            , databases = mempty
+            , providers = mempty
+            , build = Nothing
+            }
 
 packageNameToString :: Package -> String
 packageNameToString Package{name} = unAlpmPkgName name
@@ -65,10 +70,11 @@ packageNameToText = T.pack . packageNameToString
 
 data Build = Build
     { path :: FilePath
-    --, version :: Version
-    --, dependencies :: Vector Source
-    , script :: Text
-    } deriving (Generic, Show)
+    , -- , version :: Version
+      -- , dependencies :: Vector Source
+      script :: Text
+    }
+    deriving (Generic, Show)
 
 instance FromDhall Build
 instance ToDhall Build
@@ -77,20 +83,22 @@ data Database = Database
     { name :: Text
     , sigcheck :: SiglevelCheck
     , sigtrust :: SiglevelTrust
-    , servers :: Vector Text  -- TODO: NonEmpty/NonNull; URI filetype (modern-uri ?)
-    --, dependencies :: Vector Database
-    } deriving (Eq, Generic, Show)
+    , servers :: Vector Text -- TODO: NonEmpty/NonNull; URI filetype (modern-uri ?)
+    -- , dependencies :: Vector Database
+    }
+    deriving (Eq, Generic, Show)
 
 instance FromDhall Database
 instance ToDhall Database
 
 instance DC.Default Database where
-    def = Database
-        { name     = mempty
-        , sigcheck = DC.def
-        , sigtrust = DC.def
-        , servers  = mempty
-        }
+    def =
+        Database
+            { name = mempty
+            , sigcheck = DC.def
+            , sigtrust = DC.def
+            , servers = mempty
+            }
 
 databaseNameToString :: Database -> String
 databaseNameToString = T.unpack . databaseNameToText
@@ -142,20 +150,20 @@ data Version = Version
     , version :: Text
     , rel :: Natural
     , subrel :: Maybe Natural
-    } deriving (Generic, Show)
+    }
+    deriving (Generic, Show)
 
 instance FromDhall Version
 instance ToDhall Version
 
 instance DC.Default Version where
-    def = Version
-        { epoch   = Nothing
-        , version = mempty
-        , rel     = 1
-        , subrel  = Nothing
-        }
-
-
+    def =
+        Version
+            { epoch = Nothing
+            , version = mempty
+            , rel = 1
+            , subrel = Nothing
+            }
 
 instance FromDhall AlpmPkgName where
     autoWith normalizer = Decoder{..}
@@ -170,10 +178,11 @@ instance FromDhall AlpmPkgName where
 instance ToDhall AlpmPkgName where
     injectWith normalizer = unAlpmPkgName >$< injectWith normalizer
 
-
-
-embedDefault :: DC.Default a => Encoder a -> Dhall.Core.Expr Dhall.Src.Src Void
-embedDefault enc = Dhall.Core.RecordLit $ Dhall.Map.fromList
-    [ ("Type"   , Dhall.Core.makeRecordField $ Dhall.declared enc       )
-    , ("default", Dhall.Core.makeRecordField $ Dhall.embed    enc DC.def)
-    ]
+embedDefault
+    :: (DC.Default a) => Encoder a -> Dhall.Core.Expr Dhall.Src.Src Void
+embedDefault enc =
+    Dhall.Core.RecordLit
+        $ Dhall.Map.fromList
+            [ ("Type", Dhall.Core.makeRecordField $ Dhall.declared enc)
+            , ("default", Dhall.Core.makeRecordField $ Dhall.embed enc DC.def)
+            ]

@@ -1,0 +1,11 @@
+column-limit: 80
+function-arrows: leading
+haddock-style: single-line
+import-grouping: by-scope-then-qualified
+in-style: left-align
+indent-wheres: true
+let-style: newline
+sort-constraints: true
+sort-derived-classes: true
+sort-deriving-clauses: true
+trailing-section-operators: false

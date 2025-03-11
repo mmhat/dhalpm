@@ -1,7 +1,7 @@
 packages:
-  ./
+  ./dhalpm.cabal
 
-with-compiler: ghc-9.2
+with-compiler: ghc-9.4
 
 --source-repository-package
 --  type: git

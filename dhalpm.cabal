@@ -1,113 +1,121 @@
-cabal-version:      3.0
-name:               dhalpm
-version:            0.1.0.0
+cabal-version: 3.14
+name: dhalpm
+version: 0.1.0.0
 description:
   Please see the README on Github at <https://github.com/mmhat/dhalpm#readme>
 
-homepage:           https://github.com/mmhat/dhalpm#readme
-bug-reports:        https://github.com/mmhat/dhalpm/issues
-author:             Dominik Peteler
-maintainer:         haskell@with-h.at
-copyright:          2022 Dominik Peteler
-license:            BSD-3-Clause
-license-file:       LICENSE
-build-type:         Simple
-extra-source-files:
+homepage: https://github.com/mmhat/dhalpm#readme
+bug-reports: https://github.com/mmhat/dhalpm/issues
+author: Dominik Peteler
+maintainer: haskell@with-h.at
+copyright: 2022 Dominik Peteler
+license: BSD-3-Clause
+license-file: LICENSE
+build-type: Simple
+-- cabal-gild: discover ./ --include=LICENSE --include=*.md
+extra-files:
   ChangeLog.md
   LICENSE
   README.md
 
 common language
   default-extensions:
+    --DeriveGeneric
+    ExtendedDefaultRules
+    --FlexibleContexts
+    --FlexibleInstances
+    --GeneralizedNewtypeDeriving
     NoImplicitPrelude
-    DeriveGeneric
-    FlexibleContexts
-    FlexibleInstances
-    GeneralizedNewtypeDeriving
     OverloadedStrings
-    StandaloneDeriving
+    --StandaloneDeriving
     StrictData
-
   ghc-options:
-    -Wall -Wcompat -Widentities -Wincomplete-record-updates
-    -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints
+    -Wall
+    -Wcompat
+    -Widentities
+    -Wincomplete-record-updates
+    -Wincomplete-uni-patterns
+    -Wpartial-fields
+    -Wredundant-constraints
 
-  default-language:   Haskell2010
+  default-language: GHC2021
 
 common rts
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options:
+    -threaded
+    -rtsopts
+    -with-rtsopts=-N
 
 library
-  import:             language
-  hs-source-dirs:     src
+  import: language
+  hs-source-dirs: src
   build-depends:
-    , attoparsec
-    , base                >=4.11     && <5
-    , data-default-class
-    , data-fix
-    , dhall
-    , either
-    , ini                 >=0.4.0
-    , path                >=0.8.0
-    , path-io             >=1.6.0
-    , prettyprinter
-    , recursion-schemes
-    , rio                 >=0.1.12.0
+    attoparsec,
+    base >=4.11 && <5,
+    data-default-class,
+    data-fix,
+    dhall,
+    either,
+    ini >=0.4.0,
+    path >=0.8.0,
+    path-io >=1.6.0,
+    prettyprinter,
+    recursion-schemes,
+    rio >=0.1.12.0,
 
-  extra-libraries:    alpm
-  build-tool-depends: c2hs:c2hs -any
-
-  -- cabal-fmt: expand src/ -Import
+  extra-libraries: alpm
+  build-tool-depends: c2hs:c2hs
+  -- cabal-gild: discover src/ --include=src/**/*.hs --exclude=src/Import.hs
   exposed-modules:
-    Archlinux.Alpm
     Run
     Types
     Types.Dhall
 
+  -- Generated with c2hs
+  exposed-modules:
+    Archlinux.Alpm
+
   other-modules:
     Import
-    Paths_dhalpm
-
-  autogen-modules:    Paths_dhalpm
 
 executable dhalpm
-  import:          language
-  import:          rts
-  hs-source-dirs:  app/dhalpm
-  main-is:         Main.hs
+  import: language
+  import: rts
+  hs-source-dirs: app/dhalpm
+  main-is: Main.hs
   build-depends:
-    , base    >=4.14 && <4.17
-    , dhalpm
+    base,
+    dhalpm,
 
-  -- cabal-fmt: expand app/dhalpm -Main
-  other-modules:   Paths_dhalpm
-  autogen-modules: Paths_dhalpm
+  -- cabal-gild: discover app/dhalpm/ --include=app/dhalpm/**/*.hs --exclude=app/dhalpm/Main.hs
+  other-modules:
+  other-modules: PackageInfo_dhalpm
+  autogen-modules: PackageInfo_dhalpm
 
 test-suite test
-  import:             language
-  import:             rts
-  type:               exitcode-stdio-1.0
-  hs-source-dirs:     test
-  main-is:            Spec.hs
+  import: language
+  import: rts
+  type: exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is: Spec.hs
   build-depends:
-    , base        >=4.14 && <4.17
-    , dhalpm
-    , hspec
-    , path
-    , path-io
-    , QuickCheck
-    , rio
+    QuickCheck,
+    base,
+    dhalpm,
+    hspec,
+    path,
+    path-io,
+    rio,
 
-  build-tool-depends: hspec-discover:hspec-discover -any
-
-  -- cabal-fmt: expand test/ -Spec
+  build-tool-depends: hspec-discover:hspec-discover
+  -- cabal-gild: discover test/ --include=test/**/*.hs --exclude=test/Spec.hs
   other-modules:
     Archlinux.AlpmSpec
-    Paths_dhalpm
     RunSpec
 
-  autogen-modules:    Paths_dhalpm
+  other-modules: PackageInfo_dhalpm
+  autogen-modules: PackageInfo_dhalpm
 
 source-repository head
-  type:     git
+  type: git
   location: https://github.com/mmhat/dhalpm

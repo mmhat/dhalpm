@@ -146,7 +146,6 @@ default (Text)
 {#pointer *alpm_list_t         as AlpmListPtr                          #}
 {#pointer *alpm_pkg_t          as AlpmPkgPtr           newtype         #}
 {#pointer *alpm_question_t     as AlpmQuestionPtr      -> AlpmQuestion #}
-{#pointer *alpm_trans_t        as AlpmTransPtr         newtype         #}
 
 deriving instance Show AlpmPkgPtr
 deriving instance Storable AlpmPkgPtr
@@ -778,8 +777,8 @@ data AlpmTransactionError
 instance Exception AlpmTransactionError
 
 data AlpmConflict = AlpmConflict
-    { alpmConflictPkg1   :: (AlpmPkgName, Integer)
-    , alpmConflictPkg2   :: (AlpmPkgName, Integer)
+    { alpmConflictPkg1   :: AlpmPkg
+    , alpmConflictPkg2   :: AlpmPkg
     , alpmConflictReason :: AlpmDepend
     } deriving (Eq, Show)
 
@@ -787,12 +786,12 @@ instance Storable AlpmConflict where
     sizeOf _ = {#sizeof alpm_conflict_t #}
     alignment _ = {#alignof alpm_conflict_t #}
     peek p = do
-        alpmConflictPkg1 <- (,)
-            <$> (              {#get alpm_conflict_t->package1 #}      p >>= peekCString >>= parseAlpmPkgName . T.pack)
-            <*> (toInteger <$> {#get alpm_conflict_t->package1_hash #} p)
-        alpmConflictPkg2 <- (,)
-            <$> (              {#get alpm_conflict_t->package2 #}      p >>= peekCString >>= parseAlpmPkgName . T.pack)
-            <*> (toInteger <$> {#get alpm_conflict_t->package2_hash #} p)
+        alpmConflictPkg1 <- do
+            AlpmPkgPtr ptr <- {#get alpm_conflict_t->package1 #} p
+            peek (castPtr ptr)
+        alpmConflictPkg2 <- do
+            AlpmPkgPtr ptr <- {#get alpm_conflict_t->package2 #} p
+            peek (castPtr ptr)
         alpmConflictReason <- {#get alpm_conflict_t->reason #} p >>= peek . castPtr
         return $ AlpmConflict {..}
     poke _ _ = error "Storable.poke not implemented for AlpmConflict !"
