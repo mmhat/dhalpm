@@ -17,14 +17,17 @@ A test package
 any
 
 %BUILDDATE%
-1655125217
+1741663245
 
 %INSTALLDATE%
-1655125228
+1741663247
 
 %PACKAGER%
 Unknown Packager
 
 %VALIDATION%
 none
+
+%XDATA%
+pkgtype=pkg
 

@@ -17,10 +17,10 @@ A test package with dependency
 any
 
 %BUILDDATE%
-1655125165
+1741663236
 
 %INSTALLDATE%
-1655125228
+1741663247
 
 %PACKAGER%
 Unknown Packager
@@ -30,4 +30,7 @@ none
 
 %DEPENDS%
 test-package
+
+%XDATA%
+pkgtype=pkg
 
