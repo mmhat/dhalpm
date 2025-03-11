@@ -20,15 +20,11 @@ extra-files:
 
 common language
   default-extensions:
-    --DeriveGeneric
-    ExtendedDefaultRules
-    --FlexibleContexts
-    --FlexibleInstances
-    --GeneralizedNewtypeDeriving
+    LambdaCase
     NoImplicitPrelude
     OverloadedStrings
-    --StandaloneDeriving
     StrictData
+
   ghc-options:
     -Wall
     -Wcompat
@@ -55,13 +51,22 @@ library
     data-default-class,
     data-fix,
     dhall,
+    effectful,
     either,
+    exceptions,
     ini >=0.4.0,
+    log-base,
+    log-effectful,
     path >=0.8.0,
     path-io >=1.6.0,
     prettyprinter,
     recursion-schemes,
-    rio >=0.1.12.0,
+    relude,
+    text-display >=1,
+    typed-process-effectful,
+    unliftio,
+    unordered-containers,
+    vector,
 
   extra-libraries: alpm
   build-tool-depends: c2hs:c2hs
@@ -86,6 +91,11 @@ executable dhalpm
   build-depends:
     base,
     dhalpm,
+    effectful,
+    log-base,
+    log-effectful,
+    relude,
+    typed-process-effectful,
 
   -- cabal-gild: discover app/dhalpm/ --include=app/dhalpm/**/*.hs --exclude=app/dhalpm/Main.hs
   other-modules:
@@ -102,10 +112,16 @@ test-suite test
     QuickCheck,
     base,
     dhalpm,
+    directory,
+    effectful,
+    filepath,
     hspec,
+    log-base,
+    log-effectful,
     path,
     path-io,
-    rio,
+    relude,
+    typed-process-effectful,
 
   build-tool-depends: hspec-discover:hspec-discover
   -- cabal-gild: discover test/ --include=test/**/*.hs --exclude=test/Spec.hs

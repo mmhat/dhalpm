@@ -1,8 +1,11 @@
 module Main (main) where
 
-import Prelude
+import Effectful
+import Effectful.Log
+import Effectful.Process.Typed
+import Relude
 
 import Run
 
 main :: IO ()
-main = run
+main = runEff $ run

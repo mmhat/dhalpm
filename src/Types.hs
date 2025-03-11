@@ -1,7 +1,7 @@
 module Types where
 
-import RIO
-import RIO.Process
+import Effectful.Log (LogLevel)
+import Relude
 
 import Archlinux.Alpm (AlpmPkgName)
 import Types.Dhall
@@ -12,20 +12,6 @@ data Options = Options
     , optionsLogLevel :: LogLevel
     , optionsConfig :: (Maybe FilePath)
     }
-
-data App = App
-    { appLogFunc :: LogFunc
-    , appProcessContext :: ProcessContext
-    , -- App-specific CLI options and configuration
-      appOptions :: Options
-      -- Other app-specific configuration
-    }
-
-instance HasLogFunc App where
-    logFuncL = lens appLogFunc (\app lf -> app{appLogFunc = lf})
-
-instance HasProcessContext App where
-    processContextL = lens appProcessContext (\app pc -> app{appProcessContext = pc})
 
 data DhalpmException
     = ConflictingDatabaseDefinitions [Database]

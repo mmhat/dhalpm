@@ -5,13 +5,12 @@ module Archlinux.AlpmSpec where
 import Foreign hiding (void)
 import Path
 import Path.IO
-import RIO
+import Relude
 import Test.Hspec
 import Test.QuickCheck
 
-import RIO.Directory qualified as D
-import RIO.Text qualified as T
-import RIO.Text.Partial qualified as T
+import Data.Text qualified as Text
+import System.Directory qualified as Directory
 
 import Archlinux.Alpm
 
@@ -102,7 +101,7 @@ spec = do
                         , "test-package"
                         ]
                     )
-            cur <- D.getCurrentDirectory
+            cur <- Directory.getCurrentDirectory
             let
                 dbUri = "file://" ++ cur ++ "/test/databases/testdb"
             db <- registerSyncdb h "testdb" []
@@ -144,13 +143,13 @@ spec = do
                 localDb <- getLocaldb h
                 pkgs1 <- dbGetPkgcache localDb >>= mapM pkgGetName
 
-                cur <- D.getCurrentDirectory
+                cur <- Directory.getCurrentDirectory
                 let
                     dbUri = "file://" ++ cur ++ "/test/databases/testdb"
                 db <- registerSyncdb h "testdb" []
                 dbAddServer h db dbUri
                 dbUpdate h [db] False `shouldReturn` DbUpdated
-                pkg <- dbGetPkg db "test-package"
+                Just pkg <- dbGetPkg db "test-package"
                 withTrans h [] $ do
                     addPkg h pkg
                     transPrepare h
@@ -172,13 +171,13 @@ spec = do
                                     Nothing
                                 ]
 
-                cur <- D.getCurrentDirectory
+                cur <- Directory.getCurrentDirectory
                 let
                     dbUri = "file://" ++ cur ++ "/test/databases/testdb"
                 db <- registerSyncdb h "testdb" []
                 dbAddServer h db dbUri
                 dbUpdate h [db] False `shouldReturn` DbUpdated
-                pkg <- dbGetPkg db "depmissing-package"
+                Just pkg <- dbGetPkg db "depmissing-package"
                 withTrans h [] $ do
                     addPkg h pkg
                     transPrepare h `shouldThrow` (== ref)
@@ -187,7 +186,8 @@ testAlpm :: Text -> (AlpmHandlePtr -> Expectation) -> Spec
 testAlpm n k = do
     let
         baseDir = [reldir|test/.out/alpm|]
-    testFn <- runIO $ parseRelDir $ T.unpack $ T.replace " " "_" $ T.toLower n
+    testFn <-
+        runIO $ parseRelDir $ Text.unpack $ Text.replace " " "_" $ Text.toLower n
     let
         dir = baseDir </> testFn
         dbdir = dir </> [reldir|db|]
@@ -198,7 +198,7 @@ testAlpm n k = do
             ensureDir dbdir
             ensureDir rootdir
     before_ setup
-        $ it (T.unpack n)
+        $ it (Text.unpack n)
         $ withAlpm (fromRelDir rootdir) (fromRelDir dbdir) k
 
 testAlpmWithDatabase
@@ -207,7 +207,8 @@ testAlpmWithDatabase n tplDir k = do
     let
         baseDir = [reldir|test/.out/alpm|]
         dataDir = [reldir|test/databases|]
-    testFn <- runIO $ parseRelDir $ T.unpack $ T.replace " " "_" $ T.toLower n
+    testFn <-
+        runIO $ parseRelDir $ Text.unpack $ Text.replace " " "_" $ Text.toLower n
     let
         dir = baseDir </> testFn
         dbdir = dir </> [reldir|db|]
@@ -219,5 +220,5 @@ testAlpmWithDatabase n tplDir k = do
             ensureDir dbdir
             ensureDir rootdir
     before_ setup
-        $ it (T.unpack n)
+        $ it (Text.unpack n)
         $ withAlpm (fromRelDir rootdir) (fromRelDir dbdir) k

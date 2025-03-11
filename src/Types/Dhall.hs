@@ -7,15 +7,18 @@
 
 module Types.Dhall where
 
+import Data.Default.Class (Default)
 import Data.Either.Validation (Validation (..))
-import Dhall hiding (normalizer)
-import RIO
+import Data.Vector (Vector)
+import Dhall (Decoder (..), Encoder (..), FromDhall (..), ToDhall (..))
+import Relude hiding (Any)
 
-import Data.Default.Class qualified as DC
+import Data.Default.Class qualified as Default
+import Data.Text qualified as Text
+import Dhall qualified
 import Dhall.Core qualified
 import Dhall.Map qualified
 import Dhall.Src qualified
-import RIO.Text qualified as T
 
 import Archlinux.Alpm (
     AlpmPkgName,
@@ -50,13 +53,13 @@ data Package = Package
 instance FromDhall Package
 instance ToDhall Package
 
-instance DC.Default Package where
+instance Default Package where
     def =
         Package
             { name = emptyAlpmPkgName
-            , versions = DC.def
-            , sigcheck = DC.def
-            , sigtrust = DC.def
+            , versions = Default.def
+            , sigcheck = Default.def
+            , sigtrust = Default.def
             , databases = mempty
             , providers = mempty
             , build = Nothing
@@ -66,7 +69,7 @@ packageNameToString :: Package -> String
 packageNameToString Package{name} = unAlpmPkgName name
 
 packageNameToText :: Package -> Text
-packageNameToText = T.pack . packageNameToString
+packageNameToText = Text.pack . packageNameToString
 
 data Build = Build
     { path :: FilePath
@@ -91,17 +94,17 @@ data Database = Database
 instance FromDhall Database
 instance ToDhall Database
 
-instance DC.Default Database where
+instance Default Database where
     def =
         Database
             { name = mempty
-            , sigcheck = DC.def
-            , sigtrust = DC.def
+            , sigcheck = Default.def
+            , sigtrust = Default.def
             , servers = mempty
             }
 
 databaseNameToString :: Database -> String
-databaseNameToString = T.unpack . databaseNameToText
+databaseNameToString = Text.unpack . databaseNameToText
 
 databaseNameToText :: Database -> Text
 databaseNameToText Database{name} = name
@@ -115,7 +118,7 @@ data SiglevelCheck
 instance FromDhall SiglevelCheck
 instance ToDhall SiglevelCheck
 
-instance DC.Default SiglevelCheck where
+instance Default SiglevelCheck where
     def = CheckOptional
 
 data SiglevelTrust
@@ -127,7 +130,7 @@ data SiglevelTrust
 instance FromDhall SiglevelTrust
 instance ToDhall SiglevelTrust
 
-instance DC.Default SiglevelTrust where
+instance Default.Default SiglevelTrust where
     def = TrustFull
 
 data Versions
@@ -142,7 +145,7 @@ data Versions
 instance FromDhall Versions
 instance ToDhall Versions
 
-instance DC.Default Versions where
+instance Default Versions where
     def = Any
 
 data Version = Version
@@ -156,7 +159,7 @@ data Version = Version
 instance FromDhall Version
 instance ToDhall Version
 
-instance DC.Default Version where
+instance Default Version where
     def =
         Version
             { epoch = Nothing
@@ -172,17 +175,17 @@ instance FromDhall AlpmPkgName where
             extract expr = case Dhall.extract (autoWith @Text normalizer) expr of
                 Failure es -> Failure es
                 Success xs -> case parseAlpmPkgName xs of
-                    Left e -> extractError $ T.pack $ displayException e
+                    Left e -> Dhall.extractError $ Text.pack $ displayException e
                     Right n -> Success n
 
 instance ToDhall AlpmPkgName where
     injectWith normalizer = unAlpmPkgName >$< injectWith normalizer
 
 embedDefault
-    :: (DC.Default a) => Encoder a -> Dhall.Core.Expr Dhall.Src.Src Void
+    :: (Default a) => Encoder a -> Dhall.Core.Expr Dhall.Src.Src Void
 embedDefault enc =
     Dhall.Core.RecordLit
         $ Dhall.Map.fromList
             [ ("Type", Dhall.Core.makeRecordField $ Dhall.declared enc)
-            , ("default", Dhall.Core.makeRecordField $ Dhall.embed enc DC.def)
+            , ("default", Dhall.Core.makeRecordField $ Dhall.embed enc Default.def)
             ]

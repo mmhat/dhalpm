@@ -98,19 +98,23 @@ module Archlinux.Alpm
     , withCStrings
     ) where
 
-import RIO hiding (to)
+import Relude hiding (error)
 
-import qualified Data.Attoparsec.Text as AT
-import Prelude (Enum(..))
-import RIO.Char (isAlphaNum)
-import qualified RIO.Text as T
+import Control.Monad (foldM)
+import Control.Monad.Catch (MonadThrow, throwM)
+import Data.Attoparsec.Text (Parser)
+import Data.Attoparsec.Text qualified as Attoparsec
+import Data.Char (isAlphaNum)
+import Data.Text qualified as Text
+import Data.Text.Display (Display (..))
 import Foreign hiding (void)
 import Foreign.C
-import qualified System.IO.Unsafe as Unsafe
+import Prelude (error)
+import System.IO.Unsafe qualified as Unsafe
+import UnliftIO (MonadUnliftIO, askUnliftIO, unliftIO)
+import UnliftIO.Exception (bracket, handle)
 
 default (Text)
-
-
 
 #include <alpm.h>
 
@@ -211,7 +215,7 @@ data AlpmEvent
     deriving Show
 
 instance Display AlpmEvent where
-    display = displayShow  -- TODO
+    displayBuilder = displayBuilder . show  -- TODO
 
 instance Storable AlpmEvent where
     sizeOf _ = {#sizeof alpm_event_t #}
@@ -349,10 +353,13 @@ dbGetGroupcache db = liftIO $ do
     groups <- {#call alpm_db_get_groupcache #} db
     peekAlpmList groups
 
-dbGetPkg :: MonadIO m => AlpmDbPtr -> String -> m AlpmPkgPtr
+dbGetPkg :: MonadIO m => AlpmDbPtr -> String -> m (Maybe AlpmPkgPtr)
 dbGetPkg h xs = liftIO $ do
     xs' <- newCString xs
-    {#call alpm_db_get_pkg #} h xs'
+    ptr@(AlpmPkgPtr ptr') <- {#call alpm_db_get_pkg #} h xs'
+    return $ if ptr' == nullPtr
+        then Nothing
+        else Just ptr
 
 dbGetPkgcache :: MonadIO m => AlpmDbPtr -> m [AlpmPkgPtr]
 dbGetPkgcache db = liftIO $ do
@@ -434,8 +441,8 @@ instance Storable AlpmPkg where
     sizeOf _ = error "Storable.sizeOf not implemented for AlpmPkg !"
     alignment _ = error "Storable.alignment not implemented for AlpmPkg !"
     peek p = AlpmPkg
-        <$> (pkgGetName    (AlpmPkgPtr $ castPtr p) >>= parseAlpmPkgName . T.pack)
-        <*> (pkgGetVersion (AlpmPkgPtr $ castPtr p) >>= parseAlpmVersion . T.pack)
+        <$> (pkgGetName    (AlpmPkgPtr $ castPtr p) >>= parseAlpmPkgName . Text.pack)
+        <*> (pkgGetVersion (AlpmPkgPtr $ castPtr p) >>= parseAlpmVersion . Text.pack)
     poke _ _ = error "Storable.poke not implemented for AlpmPkg !"
 
 pkgLoad :: MonadIO m => AlpmHandlePtr -> Bool -> [AlpmSiglevel] -> FilePath -> m AlpmPkgPtr
@@ -507,23 +514,23 @@ newtype AlpmPkgName = AlpmPkgName { unAlpmPkgName :: String }
     deriving (Eq, Ord, Show)
 
 instance Display AlpmPkgName where
-    display = display . T.pack . unAlpmPkgName
+    displayBuilder = displayBuilder . Text.pack . unAlpmPkgName
 
 instance IsString AlpmPkgName where
-    fromString = either (error . displayException) id . parseAlpmPkgName . T.pack
+    fromString = either (error . displayException) id . parseAlpmPkgName . Text.pack
 
 emptyAlpmPkgName :: AlpmPkgName
 emptyAlpmPkgName = AlpmPkgName mempty
 
 parseAlpmPkgName :: MonadThrow m => Text -> m AlpmPkgName
-parseAlpmPkgName xs = case AT.parseOnly (pkgNameP <* AT.endOfInput) xs of
+parseAlpmPkgName xs = case Attoparsec.parseOnly (pkgNameP <* Attoparsec.endOfInput) xs of
     Left e  -> throwM $ AlpmPkgNameParseException xs e
     Right x -> return x
 
-pkgNameP :: AT.Parser AlpmPkgName
+pkgNameP :: Parser AlpmPkgName
 pkgNameP = do
-    x  <- AT.satisfy (\c -> isAlphaNum c || AT.inClass "@_+" c)
-    xs <- many (AT.satisfy (\c -> isAlphaNum c || AT.inClass "@._+-" c))
+    x  <- Attoparsec.satisfy (\c -> isAlphaNum c || Attoparsec.inClass "@_+" c)
+    xs <- many (Attoparsec.satisfy (\c -> isAlphaNum c || Attoparsec.inClass "@._+-" c))
     return $ AlpmPkgName (x:xs)
 
 data AlpmPkgNameParseException = AlpmPkgNameParseException Text String
@@ -549,22 +556,22 @@ instance Ord AlpmVersion where
     x `compare` y = Unsafe.unsafePerformIO $ vercmp' x y
 
 instance IsString AlpmVersion where
-    fromString = either (error . displayException) id . parseAlpmVersion . T.pack
+    fromString = either (error . displayException) id . parseAlpmVersion . Text.pack
 
 parseAlpmVersion :: MonadThrow m => Text -> m AlpmVersion
-parseAlpmVersion xs = case AT.parseOnly (alpmVersionP <* AT.endOfInput) xs of
+parseAlpmVersion xs = case Attoparsec.parseOnly (alpmVersionP <* Attoparsec.endOfInput) xs of
     Left e  -> throwM $ AlpmVersionParseException xs e
     Right x -> return x
 
-alpmVersionP :: AT.Parser AlpmVersion
+alpmVersionP :: Parser AlpmVersion
 alpmVersionP = do
-    mepoch <- AT.try $ optional $ AT.decimal <* AT.char ':'
-    ver <- many $ AT.satisfy (AT.notInClass " :/-")
-    void $ AT.char '-'
-    rel <- AT.decimal
+    mepoch <- Attoparsec.try $ optional $ Attoparsec.decimal <* Attoparsec.char ':'
+    ver <- many $ Attoparsec.satisfy (Attoparsec.notInClass " :/-")
+    void $ Attoparsec.char '-'
+    rel <- Attoparsec.decimal
     msubrel <- optional $ do
-        void $ AT.char '.'
-        AT.decimal
+        void $ Attoparsec.char '.'
+        Attoparsec.decimal
     return AlpmVersion
         { alpmVersionEpoch  = mepoch
         , alpmVersionVer    = ver
@@ -608,7 +615,7 @@ instance Storable AlpmDepend where
     sizeOf _ = {#sizeof alpm_depend_t #}
     alignment _ = {#alignof alpm_depend_t #}
     peek p = AlpmDepend
-        <$> ({#get alpm_depend_t->name #} p >>= peekCString >>= parseAlpmPkgName . T.pack)
+        <$> ({#get alpm_depend_t->name #} p >>= peekCString >>= parseAlpmPkgName . Text.pack)
         <*> peekConstraint p
     poke p x = do
         n <- newCString $ unAlpmPkgName $ alpmDependName x
@@ -651,7 +658,7 @@ constraintVersion (ConstraintGT v) = Just v
 
 peekConstraint :: Ptr AlpmDepend -> IO AlpmConstraint
 peekConstraint p = do
-    mversion <- {#get alpm_depend_t->version #} p >>= peekMaybe (peekCString >=> parseAlpmVersion . T.pack)
+    mversion <- {#get alpm_depend_t->version #} p >>= peekMaybe (peekCString >=> parseAlpmVersion . Text.pack)
     depmod <- toEnum . fromIntegral <$> {#get alpm_depend_t->mod #} p
     return $ case (mversion, depmod) of
         (Nothing, AlpmDepModAny) -> ConstraintAny

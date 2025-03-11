@@ -2,13 +2,19 @@
 
 module RunSpec (spec) where
 
+import Effectful
+import Effectful.FileSystem (runFileSystem)
+import Effectful.Log (LogLevel (..), runLog)
+import Effectful.Process.Typed (runTypedProcess)
+import Effectful.Reader.Static (runReader)
+import Log.Backend.StandardOutput (withStdOutLogger)
 import Path
 import Path.IO
-import RIO
-import RIO.FilePath (dropExtensions)
-import RIO.List as L
-import RIO.Process
+import Relude hiding (runReader)
+import System.FilePath (dropExtensions)
 import Test.Hspec
+
+import Data.List qualified as List
 
 import Run
 import Types
@@ -196,23 +202,16 @@ runWith' n config customSetup k = before_ setup $ it n $ do
         options =
             Options
                 { optionsConfig = Just $ fromRelFile $ [reldir|test|] </> config
-                , optionsLogLevel = LevelDebug
+                , optionsLogLevel = LogTrace
                 , optionsVerbose = True
                 }
-    lo <- logOptionsHandle stderr (optionsVerbose options)
-    let
-        lo' = setLogMinLevel (optionsLogLevel options) lo
-    pc <- mkDefaultProcessContext
-    withLogFunc lo' $ \lf ->
-        let
-            app =
-                App
-                    { appLogFunc = lf
-                    , appProcessContext = pc
-                    , appOptions = options
-                    }
-        in
-            runRIO app run
+    withStdOutLogger $ \logger ->
+        runEff
+            . runReader options
+            . runFileSystem
+            . runLog "" logger (optionsLogLevel options)
+            . runTypedProcess
+            $ run
     dir <- parseRelDir $ dropExtensions $ fromRelFile config
     k $ [reldir|test/.out|] </> dir
     where
@@ -228,7 +227,7 @@ runWith' n config customSetup k = before_ setup $ it n $ do
 withFs :: ([Path Rel Dir], [Path Rel File]) -> Path b Dir -> Expectation
 withFs ref dir = do
     res <- listDirRecurRel dir
-    (L.sort *** L.sort) res `shouldBe` ref
+    bimap List.sort List.sort res `shouldBe` ref
 
 copyDatabase :: Path Rel Dir -> Path Rel Dir -> IO ()
 copyDatabase src = copyDirRecur ([reldir|test/databases|] </> src)
