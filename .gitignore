@@ -1,4 +1,4 @@
-.hspec-failures
+.tasty-rerun-log.*
 dist-newstyle/
 cabal.project.local
 /test/.out/

@@ -1,0 +1,131 @@
+cabal-version: 3.14
+name: libalpm
+version: 1.0.0
+description: Please see the README on Github at <https://github.com/mmhat/dhalpm#readme>
+homepage: https://github.com/mmhat/dhalpm#readme
+bug-reports: https://github.com/mmhat/dhalpm/issues
+author: Dominik Peteler
+maintainer: haskell@with-h.at
+copyright: 2025 Dominik Peteler
+license: BSD-3-Clause
+license-file: LICENSE
+build-type: Simple
+-- cabal-gild: discover ./ --include=LICENSE --include=*.md
+extra-files:
+  LICENSE
+
+common language
+  default-extensions:
+    LambdaCase
+    NoImplicitPrelude
+    OverloadedStrings
+    StrictData
+
+  ghc-options:
+    -Wall
+    -Wcompat
+    -Widentities
+    -Wincomplete-record-updates
+    -Wincomplete-uni-patterns
+    -Wpartial-fields
+    -Wredundant-constraints
+
+  default-language: GHC2021
+
+common rts
+  ghc-options:
+    -threaded
+    -rtsopts
+    -with-rtsopts=-N
+
+library
+  import: language
+  hs-source-dirs: src/
+  build-depends:
+    base,
+    libalpm:libalpm-internal,
+    relude,
+
+  -- cabal-gild: discover src/ --include=src/**/*.hs
+  exposed-modules:
+    Archlinux.Alpm
+
+library libalpm-internal
+  import: language
+  visibility: public
+  hs-source-dirs: libalpm-internal/
+  build-depends:
+    attoparsec,
+    base >=4.17 && <5,
+    bytebuild,
+    byteslice,
+    bytesmith,
+    bytestring,
+    exceptions,
+    filepath >=1.5,
+    os-string >=2,
+    relude,
+    text-display >=1 && <1.1,
+
+  extra-libraries: alpm
+  build-tool-depends: c2hs:c2hs
+  -- cabal-gild: discover libalpm-internal/ --include=libalpm-internal/**/*.hs
+  exposed-modules:
+  -- Generated with c2hs
+  exposed-modules:
+    Archlinux.Alpm.Binding
+    Archlinux.Alpm.Names
+
+library libalpm-test
+  import: language
+  visibility: public
+  hs-source-dirs: libalpm-test/
+  build-depends:
+    base,
+    libalpm:libalpm-internal,
+    relude,
+    tasty,
+
+  -- cabal-gild: discover libalpm-test/ --include=libalpm-test/**/*.hs
+  exposed-modules: Archlinux.Alpm.Test
+
+test-suite test
+  import: language
+  import: rts
+  type: exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is: Main.hs
+  build-tool-depends: tasty-discover:tasty-discover >=5 && <6
+  build-depends:
+    base,
+    libalpm:libalpm-test,
+    relude,
+    tasty,
+    tasty-rerun,
+
+  -- cabal-gild: discover test/ --include=test/**/*.hs --exclude=test/Main.hs
+  other-modules: Discover
+  other-modules:
+    PackageInfo_libalpm
+    Paths_libalpm
+
+  autogen-modules:
+    PackageInfo_libalpm
+    Paths_libalpm
+
+test-suite weeder
+  import: language
+  import: rts
+  type: exitcode-stdio-1.0
+  hs-source-dirs: weeder
+  main-is: Main.hs
+  build-depends:
+    base,
+    filepath,
+    libalpm,
+    template-haskell,
+    weeder,
+
+source-repository head
+  type: git
+  location: https://github.com/mmhat/dhalpm

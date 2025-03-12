@@ -1,0 +1,9 @@
+roots = [
+    "^Main.main$",
+    "^PackageInfo_.*",
+    "^Paths_.*",
+    ]
+
+type-class-roots = true
+
+unused-types = true

@@ -1,10 +1,31 @@
 cradle:
   cabal:
-    - path: "./src"
+    - path: "dhalpm/src/"
       component: "lib:dhalpm"
 
-    - path: "./app/dhalpm/Main.hs"
-      component: "dhalpm:exe:dhalpm"
+    - path: "dhalpm/dhalpm-internal/"
+      component: "dhalpm:lib:dhalpm-internal"
 
-    - path: "./test"
+    - path: "dhalpm/dhalpm-test/"
+      component: "dhalpm:lib:dhalpm-test"
+
+    - path: "dhalpm/test"
       component: "dhalpm:test:test"
+
+    - path: "dhalpm/weeder"
+      component: "dhalpm:test:weeder"
+
+    - path: "libalpm/src/"
+      component: "lib:libalpm"
+
+    - path: "libalpm/libalpm-internal/"
+      component: "libalpm:lib:libalpm-internal"
+
+    - path: "libalpm/libalpm-test/"
+      component: "libalpm:lib:libalpm-test"
+
+    - path: "libalpm/test"
+      component: "libalpm:test:test"
+
+    - path: "libalpm/weeder"
+      component: "libalpm:test:weeder"

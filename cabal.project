@@ -1,10 +1,11 @@
 packages:
-  ./dhalpm.cabal
+  dhalpm/dhalpm.cabal
+  libalpm/libalpm.cabal
 
-with-compiler: ghc-9.4
+program-options
+  ghc-options: -fwrite-ide-info
 
---source-repository-package
---  type: git
---  location: URL
---  tag: TAG
---  subdir: DIRS
+source-repository-package
+  type: git
+  location: https://github.com/ocharles/weeder.git
+  tag: 6c78e137033025c6b33e35fb8f9e681d55c43427
