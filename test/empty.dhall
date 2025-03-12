@@ -1,6 +1,6 @@
 let testdir = "test/.out/empty"
 in
-{ rootDir = "${testdir}/root"
-, databaseDir = "${testdir}/db"
-, packages = ([] : List PackageT)
+{ root-dir = "${testdir}/root"
+, database-dir = "${testdir}/db"
+, packages = ([] : List Package/Type)
 }

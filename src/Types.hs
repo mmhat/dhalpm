@@ -1,5 +1,6 @@
 module Types where
 
+import Data.Vector (Vector)
 import Effectful.Log (LogLevel)
 import Relude
 
@@ -14,8 +15,8 @@ data Options = Options
     }
 
 data DhalpmException
-    = ConflictingDatabaseDefinitions [Database]
-    | NoProviderFound AlpmPkgName String [Text] [Text]
+    = ConflictingDatabaseDefinitions (NonEmpty Database)
+    | NoProviderFound AlpmPkgName String (Vector Text) [Text]
     | PackageNotFound Package
     | InvalidVersionRange Text String
     deriving (Show)

@@ -23,7 +23,6 @@ import Relude as Export hiding (
 import Path.IO qualified
 
 import Types as Export
-import Types.Dhall as Export
 
 --------------------------------------------------------------------------------
 -- Effectful versions of Path.IO functions

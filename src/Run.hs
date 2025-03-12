@@ -1,4 +1,4 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Run (run) where
@@ -15,8 +15,9 @@ import Effectful.Process.Typed (TypedProcess, proc, runProcess_)
 import Effectful.Reader.Static
 import Relude.Extra.Lens (set)
 
-import Data.HashMap.Strict qualified as HashMap
 import Data.List qualified as List
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Vector qualified as Vector
 import Dhall qualified
@@ -41,8 +42,19 @@ import Archlinux.Alpm (
     UpdateResult (..),
  )
 import Import
+import Types.Dhall (
+    Build,
+    Config,
+    Database,
+    Package,
+    SiglevelCheck (..),
+    SiglevelTrust (..),
+    Version,
+    Versions (..),
+ )
 
 import Archlinux.Alpm qualified as Alpm
+import Types.Dhall qualified as Config
 
 default (Text)
 
@@ -63,36 +75,38 @@ run
 run = do
     fp <- fromMaybe "config.dhall" <$> asks optionsConfig
     let
-        subst =
+        substitutions =
             Dhall.Map.fromList
                 <$> sequenceA
-                    [ ("BuildT",) <$> Dhall.expected (Dhall.auto @Build)
-                    , ("ConfigT",) <$> Dhall.expected (Dhall.auto @Config)
-                    , ("DatabaseT",) <$> Dhall.expected (Dhall.auto @Database)
-                    , ("PackageT",) <$> Dhall.expected (Dhall.auto @Package)
-                    , ("SiglevelCheckT",) <$> Dhall.expected (Dhall.auto @SiglevelCheck)
-                    , ("SiglevelTrustT",) <$> Dhall.expected (Dhall.auto @SiglevelTrust)
-                    , ("VersionsT",) <$> Dhall.expected (Dhall.auto @Versions)
-                    , ("VersionT",) <$> Dhall.expected (Dhall.auto @Version)
+                    [ ("Build/Type",) <$> Dhall.expected (Dhall.auto @Build)
+                    , ("Config/Type",) <$> Dhall.expected (Dhall.auto @Config)
+                    , ("Database/Type",) <$> Dhall.expected (Dhall.auto @Database)
+                    , ("Package/Type",) <$> Dhall.expected (Dhall.auto @Package)
+                    , ("SiglevelCheck/Type",) <$> Dhall.expected (Dhall.auto @SiglevelCheck)
+                    , ("SiglevelTrust/Type",) <$> Dhall.expected (Dhall.auto @SiglevelTrust)
+                    , ("Versions/Type",) <$> Dhall.expected (Dhall.auto @Versions)
+                    , ("Version/Type",) <$> Dhall.expected (Dhall.auto @Version)
                     , --
-                      pure ("Database", embedDefault (Dhall.inject @Database))
-                    , pure ("Package", embedDefault (Dhall.inject @Package))
-                    , pure ("SiglevelCheck", embedDefault (Dhall.inject @SiglevelCheck))
-                    , pure ("SiglevelTrust", embedDefault (Dhall.inject @SiglevelTrust))
-                    , pure ("Versions", embedDefault (Dhall.inject @Versions))
+                      pure ("Database", Config.embedDefault (Dhall.inject @Database))
+                    , pure ("Package", Config.embedDefault (Dhall.inject @Package))
+                    , pure ("SiglevelCheck", Config.embedDefault (Dhall.inject @SiglevelCheck))
+                    , pure ("SiglevelTrust", Config.embedDefault (Dhall.inject @SiglevelTrust))
+                    , pure ("Versions", Config.embedDefault (Dhall.inject @Versions))
                     -- , pure ("Version"      , embedDefault (Dhall.inject @Version      ))
                     ]
-    subst' <- case subst of
+    substitutions' <- case substitutions of
         Failure e -> throwM e
         Success subst' -> pure subst'
     let
-        settings = set Dhall.substitutions subst' Dhall.defaultEvaluateSettings
+        settings =
+            set Dhall.substitutions substitutions'
+                $ Dhall.defaultEvaluateSettings
     config <- liftIO (Dhall.inputFileWithSettings settings Dhall.auto fp)
-    rootdir <- resolveDir' $ rootDir config
-    dbdir <- resolveDir' $ databaseDir config
+    rootdir <- resolveDir' (Config.configRootDir config)
+    dbdir <- resolveDir' (Config.configDatabaseDir config)
     ensureDir dbdir
     Alpm.withAlpm (fromAbsDir rootdir) (fromAbsDir dbdir) $ \h ->
-        run' rootdir dbdir (packages config) h
+        run' rootdir dbdir (Config.configPackages config) h
 
 run'
     :: (FileSystem :> es, IOE :> es, Log :> es, TypedProcess :> es)
@@ -105,56 +119,51 @@ run' rootdir dbdir packages h = do
     withEffToIO (ConcUnlift Ephemeral Unlimited) $ \runInIO ->
         Alpm.optionSetEventCb h (runInIO . eventLogger)
     localDb <- Alpm.getLocaldb h
-    dbs <- case collectDatabases packages of
+    case collectDatabases packages of
         Failure es -> throwM $ ConflictingDatabaseDefinitions es
         Success dbs -> do
-            dbs' <- mapM (registerDatabaseGlobal h) dbs
-            updateResult <- Alpm.dbUpdate h (HashMap.elems dbs') False
+            dbs' <- traverse (registerDatabaseGlobal h) dbs
+            updateResult <- Alpm.dbUpdate h dbs' False
             logTrace_ $ case updateResult of
                 DbUpdated -> "Databases were updated"
                 DbUpdateSkipped -> "Update of databases was skipped"
                 DbUpToDate -> "Databases were up to date"
-            pure dbs'
     pkgNames <- Alpm.withTrans h [AlpmTransFlagAlldeps, AlpmTransFlagNeeded] $ do
         -- TODO: Set trans flags from config ?
         -- pkgNames <- forConcurrently packages $ \pkg@(Package {..}) -> do
-        pkgNames <- for packages $ \pkg@(Package{..}) -> do
+        pkgNames <- for packages $ \package -> do
             pkg' <- do
                 mpkg <-
                     choiceM
-                        [ getSyncPkg h pkg
-                        , for build (getBuildPkg h pkg)
-                        , getLocalPkg h pkg
+                        [ getSyncPkg h package
+                        , for
+                            (Config.packageBuild package)
+                            (getBuildPkg h package)
+                        , getLocalPkg h package
                         ]
                 case mpkg of
-                    Nothing -> throwM $ PackageNotFound pkg
-                    Just pkg' -> return pkg'
-            orig <- Alpm.pkgGetOrigin pkg'
-            logTrace_ $ "Origin of " <> display name <> ": " <> display (show @Text orig)
-            res <- case orig of
+                    Nothing -> throwM $ PackageNotFound package
+                    Just pkg' -> pure pkg'
+            origin <- Alpm.pkgGetOrigin pkg'
+            logTrace_
+                $ "Origin of "
+                <> display (Config.packageName package)
+                <> ": "
+                <> display (show @Text origin)
+            res <- case origin of
                 AlpmPkgFromFile -> do
-                    fn <- Alpm.pkgGetFilename pkg'
-                    logInfo_ $ "Adding " <> display (show @Text fn) <> " to transaction"
-                    Alpm.pkgLoad h True (toAlpmPackageSiglevels sigcheck sigtrust) fn
-                AlpmPkgFromSyncdb -> do
-                    -- db <-
-                    --     Alpm.pkgGetDb pkg' >>= \case
-                    --         Nothing ->
-                    --             error
-                    --                 . Text.pack
-                    --                 $ "SHOULD NEVER HAPPEN: No database for "
-                    --                     <> packageNameToString pkg
-                    --         Just db -> do
-                    --             dbname <- Alpm.dbGetName db
-                    --             case HashMap.lookup (Text.pack dbname) dbs of
-                    --                 Nothing ->
-                    --                     error . Text.pack $ "SHOULD NEVER HAPPEN: Database " <> dbname <> " not found"
-                    --                 Just db' -> return db'
-                    -- n <- Alpm.pkgGetName pkg'
-                    -- logInfo_ $ "Adding " <> display (show @Text n) <> " to transaction"
-                    -- _f pkg'
-                    -- Alpm.dbGetPkg db n
-                    return pkg'
+                    file <- Alpm.pkgGetFilename pkg'
+                    logInfo_ $ "Adding " <> display (show @Text file) <> " to transaction"
+                    Alpm.pkgLoad
+                        h
+                        True
+                        ( toAlpmPackageSiglevels
+                            (Config.packageSigcheck package)
+                            (Config.packageSigtrust package)
+                        )
+                        file
+                AlpmPkgFromSyncdb ->
+                    pure pkg'
                 _ -> error "NOT IMPLEMENTED: Packages from local db"
             -- TODO: Do we need locking ?
             Alpm.addPkg h res
@@ -185,7 +194,7 @@ run' rootdir dbdir packages h = do
     forM_ pkgNames $ \n -> do
         mpkg <- Alpm.dbGetPkg localDb n
         case mpkg of
-            Nothing -> return () -- TODO
+            Nothing -> pure () -- TODO
             Just !pkg' -> Alpm.pkgSetReason h pkg' AlpmPkgReasonExplicit
 
 eventLogger :: (Log :> es) => AlpmEvent -> Eff es ()
@@ -220,20 +229,24 @@ answering
     => Package
     -> AlpmQuestion
     -> Eff es ()
-answering Package{name, providers} (AlpmQuestionSelectProvider' dep ps cb) = do
-    dep' <- Alpm.depComputeString dep
-    ps' <- mapM (fmap Text.pack . Alpm.pkgGetName) ps
-    case fmap head . nonEmpty $ List.intersect providers ps' of
-        Just provider | Just i <- List.elemIndex provider ps' -> do
+answering package (AlpmQuestionSelectProvider' dependency candidates cb) = do
+    let
+        name = Config.packageName package
+        providers = Config.packageProviders package
+
+    dependency' <- Alpm.depComputeString dependency
+    candidates' <- traverse (fmap Text.pack . Alpm.pkgGetName) candidates
+    case fmap head . nonEmpty $ List.intersect (Vector.toList providers) candidates' of
+        Just provider | Just i <- List.elemIndex provider candidates' -> do
             logInfo_
                 $ "Target "
                 <> display name
                 <> ": Choosing provider "
                 <> display provider
                 <> " for "
-                <> display (Text.pack dep')
+                <> display (Text.pack dependency')
             liftIO $ cb i
-        _ -> throwM $ NoProviderFound name dep' providers ps'
+        _ -> throwM $ NoProviderFound name dependency' providers candidates'
 answering pkg (AlpmQuestion qt) = logTrace_ $ display (show @Text (pkg, qt))
 
 getSyncPkg
@@ -241,28 +254,27 @@ getSyncPkg
     => AlpmHandlePtr
     -> Package
     -> Eff es (Maybe AlpmPkgPtr)
-getSyncPkg h pkg@(Package{..}) = do
-    logTrace_ $ "Getting sync package: " <> display name
+getSyncPkg h package = do
     let
-        ns = Vector.map databaseNameToString databases
+        name = Config.packageName package
+        versions = Config.packageVersions package
+        dbNames =
+            Vector.foldMap
+                (Set.singleton . Config.databaseName)
+                (Config.packageDatabases package)
+    logTrace_ $ "Getting sync package: " <> display name
     dbs <-
         Alpm.getSyncdbs h
             >>= filterM
                 ( \db -> do
                     n <- Alpm.dbGetName db
-                    pure $ n `Vector.elem` ns
+                    pure (Text.pack n `Set.member` dbNames)
                 )
     withEffToIO (ConcUnlift Ephemeral Unlimited) $ \runInIO ->
-        Alpm.optionSetQuestionCb h (runInIO . answering pkg)
-    res <- Alpm.findDbsSatisfier' h dbs $ mkDepend name versions
+        Alpm.optionSetQuestionCb h (runInIO . answering package)
+    res <- Alpm.findDbsSatisfier' h dbs (mkDepend name versions)
     logTrace_ $ "Got sync package: " <> display (show @Text name)
-    return res
-    where
-        registerDatabase pkgsiglevels db =
-            Alpm.registerSyncdb
-                h
-                (databaseNameToString db)
-                (pkgsiglevels <> toAlpmDatabaseSiglevels sigcheck sigtrust)
+    pure res
 
 getBuildPkg
     :: (FileSystem :> es, IOE :> es, Log :> es, TypedProcess :> es)
@@ -270,7 +282,12 @@ getBuildPkg
     -> Package
     -> Build
     -> Eff es AlpmPkgPtr
-getBuildPkg h (Package{..}) (Build{..}) = do
+getBuildPkg h package build = do
+    let
+        name = Config.packageName package
+        path = Config.buildPath build
+        script = Config.buildScript build
+
     logTrace_ $ "Getting build package: " <> display name
     path' <- resolveFile' path
     unless (Text.null script)
@@ -280,15 +297,24 @@ getBuildPkg h (Package{..}) (Build{..}) = do
             Effectful.FileSystem.IO.ByteString.hPut fh $ encodeUtf8 script
             hClose fh
             runProcess_ $ proc "sh" [fromAbsFile scriptFp]
-    Alpm.pkgLoad h True (toAlpmPackageSiglevels sigcheck sigtrust)
-        $ fromAbsFile path'
+    Alpm.pkgLoad
+        h
+        True
+        ( toAlpmPackageSiglevels
+            (Config.packageSigcheck package)
+            (Config.packageSigtrust package)
+        )
+        (fromAbsFile path')
 
 getLocalPkg
     :: (IOE :> es, Log :> es)
     => AlpmHandlePtr
     -> Package
     -> Eff es (Maybe AlpmPkgPtr)
-getLocalPkg h Package{..} = do
+getLocalPkg h package = do
+    let
+        name = Config.packageName package
+        versions = Config.packageVersions package
     logTrace_ $ "Getting local package: " <> display name
     localDb <- Alpm.getLocaldb h
     Alpm.findDbsSatisfier' h [localDb] $ mkDepend name versions
@@ -305,43 +331,56 @@ mkDepend n v =
             Ge v' -> ConstraintGE $ toAlpmVersion v'
             Gt v' -> ConstraintGT $ toAlpmVersion v'
         }
-    where
-        toAlpmVersion Version{..} =
-            AlpmVersion
-                { alpmVersionEpoch = epoch
-                , alpmVersionVer = Text.unpack version
-                , alpmVersionRel = rel
-                , alpmVersionSubRel = subrel
-                }
 
 collectDatabases
-    :: Vector Package -> Validation [Database] (HashMap Text Database)
-collectDatabases = sequenceA . unionsWith f . fmap g . mconcatMap databases
+    :: Vector Package
+    -> Validation (NonEmpty Database) [Database]
+collectDatabases =
+    fmap Map.elems
+        . sequenceA
+        . Map.unionsWith validate
+        . fmap pack
+        . foldMap Config.packageDatabases
     where
-        f v@(Success x) (Success y) | x == y = v
-        f (Success x) y = f (Failure [x]) y
-        f x (Success y) = f x (Failure [y])
-        f x y = x <> y
+        validate
+            :: Validation (NonEmpty Database) Database
+            -> Validation (NonEmpty Database) Database
+            -> Validation (NonEmpty Database) Database
+        validate v@(Success x) (Success y)
+            | x == y = v
+            | otherwise = Failure [x, y]
+        validate (Success x) y = validate (Failure [x]) y
+        validate x (Success y) = validate x (Failure [y])
+        validate x y = x <> y
 
-        g db@(Database{name}) = HashMap.singleton name $ Success db
+        pack :: Database -> Map Text (Validation (NonEmpty Database) Database)
+        pack db = Map.singleton (Config.databaseName db) (Success db)
 
 registerDatabaseGlobal
     :: (IOE :> es, Log :> es)
     => AlpmHandlePtr
     -> Database
     -> Eff es AlpmDbPtr
-registerDatabaseGlobal h Database{..} = do
+registerDatabaseGlobal h db = do
+    let
+        name = Config.databaseName db
+        servers = Config.databaseServers db
     logTrace_ $ "Registering database " <> display name
-    db <-
+    dbPtr <-
         Alpm.registerSyncdb h (Text.unpack name)
-            $ toAlpmDatabaseSiglevels sigcheck sigtrust
+            $ toAlpmDatabaseSiglevels
+                (Config.databaseSigcheck db)
+                (Config.databaseSigtrust db)
     logTrace_
         $ "Setting servers for "
         <> display name
         <> ": "
         <> display (show @Text servers)
-    Alpm.dbSetServers h db $ Vector.toList $ Vector.map Text.unpack servers
-    return db
+    Alpm.dbSetServers h dbPtr
+        . Vector.toList
+        . Vector.map Text.unpack
+        $ servers
+    pure dbPtr
 
 toAlpmDatabaseSiglevels :: SiglevelCheck -> SiglevelTrust -> [AlpmSiglevel]
 toAlpmDatabaseSiglevels check trust = check' <> trust'
@@ -370,20 +409,13 @@ toAlpmPackageSiglevels check trust = check' <> trust'
             TrustFull -> []
 
 toAlpmVersion :: Version -> AlpmVersion
-toAlpmVersion ver =
+toAlpmVersion version =
     AlpmVersion
-        { alpmVersionEpoch = epoch ver
-        , alpmVersionVer = Text.unpack $ version ver
-        , alpmVersionRel = rel ver
-        , alpmVersionSubRel = subrel ver
+        { alpmVersionEpoch = Config.versionEpoch version
+        , alpmVersionVer = Text.unpack (Config.versionVersion version)
+        , alpmVersionRel = Config.versionRel version
+        , alpmVersionSubRel = Config.versionSubrel version
         }
 
 choiceM :: (Monad m) => [m (Maybe a)] -> m (Maybe a)
-choiceM = foldr (\k memo -> k >>= maybe memo (return . Just)) (return Nothing)
-
-mconcatMap :: (Foldable t, Monoid (f b)) => (a -> f b) -> t a -> f b
-mconcatMap f = foldl' (\memo x -> memo <> f x) mempty
-
-unionsWith
-    :: (Foldable t, Hashable k) => (v -> v -> v) -> t (HashMap k v) -> HashMap k v
-unionsWith f = foldl' (HashMap.unionWith f) mempty
+choiceM = foldr (\k memo -> k >>= maybe memo (pure . Just)) (pure Nothing)

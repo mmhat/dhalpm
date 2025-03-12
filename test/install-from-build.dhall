@@ -2,13 +2,13 @@ let testdir = "test/.out/install-from-build"
 let srcdir = "${env:PWD as Text}/test/packages/test-package"
 let builddir = "${env:PWD as Text}/${testdir}/test-package"
 in
-{ rootDir = "${testdir}/root"
-, databaseDir = "${testdir}/db"
+{ root-dir = "${testdir}/root"
+, database-dir = "${testdir}/db"
 , packages =
   [ Package ::
     { name = "test-package"
-    , sigcheck = SiglevelCheckT.CheckNever
-    , sigtrust = SiglevelTrustT.TrustAll
+    , sigcheck = SiglevelCheck/Type.CheckNever
+    , sigtrust = SiglevelTrust/Type.TrustAll
     , build = Some
       { path = "${builddir}/test-package-1-1-any.pkg.tar.zst"
       , script = ''

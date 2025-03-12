@@ -1,16 +1,16 @@
 let testdir = "test/.out/remove-orphaned"
 in
-{ rootDir = "${testdir}/root"
-, databaseDir = "${testdir}/db"
+{ root-dir = "${testdir}/root"
+, database-dir = "${testdir}/db"
 , packages =
   [ Package ::
     { name = "test-package"
-    , sigcheck = SiglevelCheckT.CheckNever
-    , sigtrust = SiglevelTrustT.TrustAll
+    , sigcheck = SiglevelCheck/Type.CheckNever
+    , sigtrust = SiglevelTrust/Type.TrustAll
     , databases =
       [ { name = "testdb"
-        , sigcheck = SiglevelCheckT.CheckNever
-        , sigtrust = SiglevelTrustT.TrustAll
+        , sigcheck = SiglevelCheck/Type.CheckNever
+        , sigtrust = SiglevelTrust/Type.TrustAll
         , servers =
           [ "file://${env:PWD as Text}/test/databases/testdb"
           ]
