@@ -1,5 +1,7 @@
 .hspec-failures
 dist-newstyle/
 cabal.project.local
-/test/.out/
-/test/packages/*/pkg/
+/alpm/test/.out/
+/alpm/test/packages/*/pkg/
+/dhalpm/test/.out/
+/dhalpm/test/packages/*/pkg/

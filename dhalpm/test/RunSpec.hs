@@ -6,7 +6,6 @@ import Effectful
 import Effectful.FileSystem (runFileSystem)
 import Effectful.Log (LogLevel (..), runLog)
 import Effectful.Process.Typed (runTypedProcess)
-import Effectful.Reader.Static (runReader)
 import Log.Backend.StandardOutput (withStdOutLogger)
 import Path
 import Path.IO
@@ -17,7 +16,6 @@ import Test.Hspec
 import Data.List qualified as List
 
 import Run
-import Types
 
 default (Text)
 
@@ -199,24 +197,19 @@ runWith'
     -> Spec
 runWith' n config customSetup k = before_ setup $ it n $ do
     let
-        options =
-            Options
-                { optionsConfig = Just $ fromRelFile $ [reldir|test|] </> config
-                , optionsLogLevel = LogTrace
-                , optionsVerbose = True
-                }
+        configFile = Just . fromRelFile $ [reldir|test|] </> config
+        logLevel = LogTrace
     withStdOutLogger $ \logger ->
         runEff
-            . runReader options
             . runFileSystem
-            . runLog "" logger (optionsLogLevel options)
+            . runLog "" logger logLevel
             . runTypedProcess
-            $ run
-    dir <- parseRelDir $ dropExtensions $ fromRelFile config
+            $ run configFile
+    dir <- parseRelDir . dropExtensions $ fromRelFile config
     k $ [reldir|test/.out|] </> dir
     where
         setup = do
-            dir <- parseRelDir $ dropExtensions $ fromRelFile config
+            dir <- parseRelDir . dropExtensions $ fromRelFile config
             let
                 dir' = [reldir|test/.out|] </> dir
             whenM (doesDirExist dir')

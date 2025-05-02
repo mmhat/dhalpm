@@ -1,0 +1,13 @@
+# Maintainer: maintainer <maintainer@localhost>
+
+pkgname=depends-package
+pkgver=1
+pkgrel=1
+pkgdesc="A test package with dependency"
+arch=(any)
+depends=('test-package')
+
+package() {
+    mkdir "$pkgdir/testdir"
+    touch "$pkgdir/depends-file1" "$pkgdir/depends-file2"
+}

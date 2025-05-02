@@ -6,6 +6,12 @@
 
 module Types.Dhall where
 
+import Archlinux.Alpm (
+    AlpmPkgName,
+    emptyAlpmPkgName,
+    parseAlpmPkgName,
+    unAlpmPkgName,
+ )
 import Data.Default.Class (Default)
 import Data.Either.Validation (Validation (..))
 import Data.Vector (Vector)
@@ -20,13 +26,6 @@ import Dhall qualified
 import Dhall.Core qualified
 import Dhall.Map qualified
 import Dhall.Src qualified
-
-import Archlinux.Alpm (
-    AlpmPkgName,
-    emptyAlpmPkgName,
-    parseAlpmPkgName,
-    unAlpmPkgName,
- )
 
 default (Text)
 

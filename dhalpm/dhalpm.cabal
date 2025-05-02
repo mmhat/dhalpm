@@ -46,6 +46,7 @@ library
   import: language
   hs-source-dirs: src
   build-depends:
+    alpm,
     attoparsec,
     base >=4.11 && <5,
     data-default-class,
@@ -68,17 +69,11 @@ library
     unordered-containers,
     vector,
 
-  extra-libraries: alpm
-  build-tool-depends: c2hs:c2hs
   -- cabal-gild: discover src/ --include=src/**/*.hs --exclude=src/Import.hs
   exposed-modules:
     Run
     Types
     Types.Dhall
-
-  -- Generated with c2hs
-  exposed-modules:
-    Archlinux.Alpm
 
   other-modules:
     Import
@@ -94,11 +89,11 @@ executable dhalpm
     effectful,
     log-base,
     log-effectful,
-    relude,
+    optparse-simple,
     typed-process-effectful,
 
   -- cabal-gild: discover app/dhalpm/ --include=app/dhalpm/**/*.hs --exclude=app/dhalpm/Main.hs
-  other-modules:
+  other-modules: Options
   other-modules: PackageInfo_dhalpm
   autogen-modules: PackageInfo_dhalpm
 
@@ -126,7 +121,6 @@ test-suite test
   build-tool-depends: hspec-discover:hspec-discover
   -- cabal-gild: discover test/ --include=test/**/*.hs --exclude=test/Spec.hs
   other-modules:
-    Archlinux.AlpmSpec
     RunSpec
 
   other-modules: PackageInfo_dhalpm

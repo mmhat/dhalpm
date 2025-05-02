@@ -1,0 +1,108 @@
+cabal-version: 3.14
+name: alpm
+version: 0.1.0.0
+description:
+  Please see the README on Github at <https://github.com/mmhat/dhalpm#readme>
+
+homepage: https://github.com/mmhat/dhalpm#readme
+bug-reports: https://github.com/mmhat/dhalpm/issues
+author: Dominik Peteler
+maintainer: haskell@with-h.at
+copyright: 2022 Dominik Peteler
+license: BSD-3-Clause
+license-file: LICENSE
+build-type: Simple
+-- cabal-gild: discover ./ --include=LICENSE --include=*.md
+extra-files:
+  ChangeLog.md
+  LICENSE
+  README.md
+
+common language
+  default-extensions:
+    LambdaCase
+    NoImplicitPrelude
+    OverloadedStrings
+    StrictData
+
+  ghc-options:
+    -Wall
+    -Wcompat
+    -Widentities
+    -Wincomplete-record-updates
+    -Wincomplete-uni-patterns
+    -Wpartial-fields
+    -Wredundant-constraints
+
+  default-language: GHC2021
+
+common rts
+  ghc-options:
+    -threaded
+    -rtsopts
+    -with-rtsopts=-N
+
+library
+  import: language
+  hs-source-dirs: src
+  build-depends:
+    attoparsec,
+    base >=4.11 && <5,
+    data-default-class,
+    data-fix,
+    dhall,
+    effectful,
+    either,
+    exceptions,
+    ini >=0.4.0,
+    log-base,
+    log-effectful,
+    path >=0.8.0,
+    path-io >=1.6.0,
+    prettyprinter,
+    recursion-schemes,
+    relude,
+    text-display >=1,
+    typed-process-effectful,
+    unliftio,
+    unordered-containers,
+    vector,
+
+  extra-libraries: alpm
+  build-tool-depends: c2hs:c2hs
+  -- Generated with c2hs
+  exposed-modules:
+    Archlinux.Alpm
+
+test-suite test
+  import: language
+  import: rts
+  type: exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is: Spec.hs
+  build-depends:
+    QuickCheck,
+    alpm,
+    base,
+    directory,
+    effectful,
+    filepath,
+    hspec,
+    log-base,
+    log-effectful,
+    path,
+    path-io,
+    relude,
+    typed-process-effectful,
+
+  build-tool-depends: hspec-discover:hspec-discover
+  -- cabal-gild: discover test/ --include=test/**/*.hs --exclude=test/Spec.hs
+  other-modules:
+    Archlinux.AlpmSpec
+
+  other-modules: PackageInfo_alpm
+  autogen-modules: PackageInfo_alpm
+
+source-repository head
+  type: git
+  location: https://github.com/mmhat/dhalpm

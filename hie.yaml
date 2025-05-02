@@ -1,10 +1,16 @@
 cradle:
   cabal:
-    - path: "./src"
+    - path: "./alpm/src"
+      component: "lib:alpm"
+
+    - path: "./alpm/test"
+      component: "alpm:test:test"
+
+    - path: "./dhalpm/src"
       component: "lib:dhalpm"
 
-    - path: "./app/dhalpm/Main.hs"
+    - path: "./dhalpm/app/dhalpm"
       component: "dhalpm:exe:dhalpm"
 
-    - path: "./test"
+    - path: "./dhalpm/test"
       component: "dhalpm:test:test"

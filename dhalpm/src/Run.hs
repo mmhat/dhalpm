@@ -3,27 +3,6 @@
 
 module Run (run) where
 
-import Control.Monad.Catch
-import Data.Either.Validation (Validation (..))
-import Data.Text.Display
-import Data.Traversable (for)
-import Data.Vector (Vector)
-import Effectful
-import Effectful.FileSystem.IO (hClose)
-import Effectful.Log
-import Effectful.Process.Typed (TypedProcess, proc, runProcess_)
-import Effectful.Reader.Static
-import Relude.Extra.Lens (set)
-
-import Data.List qualified as List
-import Data.Map.Strict qualified as Map
-import Data.Set qualified as Set
-import Data.Text qualified as Text
-import Data.Vector qualified as Vector
-import Dhall qualified
-import Dhall.Map qualified
-import Effectful.FileSystem.IO.ByteString qualified
-
 import Archlinux.Alpm (
     AlpmConstraint (..),
     AlpmDbPtr,
@@ -41,6 +20,28 @@ import Archlinux.Alpm (
     AlpmVersion (..),
     UpdateResult (..),
  )
+import Control.Monad.Catch
+import Data.Either.Validation (Validation (..))
+import Data.Text.Display
+import Data.Traversable (for)
+import Data.Vector (Vector)
+import Effectful
+import Effectful.FileSystem.IO (hClose)
+import Effectful.Log
+import Effectful.Process.Typed (TypedProcess, proc, runProcess_)
+import Effectful.Reader.Static
+import Relude.Extra.Lens (set)
+
+import Archlinux.Alpm qualified as Alpm
+import Data.List qualified as List
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Data.Vector qualified as Vector
+import Dhall qualified
+import Dhall.Map qualified
+import Effectful.FileSystem.IO.ByteString qualified
+
 import Import
 import Types.Dhall (
     Build,
@@ -53,7 +54,6 @@ import Types.Dhall (
     Versions (..),
  )
 
-import Archlinux.Alpm qualified as Alpm
 import Types.Dhall qualified as Config
 
 default (Text)
@@ -68,13 +68,13 @@ run
     :: ( FileSystem :> es
        , IOE :> es
        , Log :> es
-       , Reader Options :> es
        , TypedProcess :> es
        )
-    => Eff es ()
-run = do
-    fp <- fromMaybe "config.dhall" <$> asks optionsConfig
+    => Maybe FilePath
+    -> Eff es ()
+run configFile = do
     let
+        fp = fromMaybe "config.dhall" configFile
         substitutions =
             Dhall.Map.fromList
                 <$> sequenceA
