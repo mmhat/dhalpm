@@ -1,7 +1,12 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Run (run) where
+module Run (
+    run,
+    runFromFile,
+    runFromText,
+    runFromExpression,
+) where
 
 import Archlinux.Alpm (
     AlpmConstraint (..),
@@ -20,17 +25,16 @@ import Archlinux.Alpm (
     AlpmVersion (..),
     UpdateResult (..),
  )
-import Control.Monad.Catch
 import Data.Either.Validation (Validation (..))
 import Data.Text.Display
 import Data.Traversable (for)
 import Data.Vector (Vector)
-import Effectful
+import Dhall.Core (Expr, Import)
+import Dhall.Src (Src)
+import Effectful.Exception (throwIO)
 import Effectful.FileSystem.IO (hClose)
 import Effectful.Log
 import Effectful.Process.Typed (TypedProcess, proc, runProcess_)
-import Effectful.Reader.Static
-import Relude.Extra.Lens (set)
 
 import Archlinux.Alpm qualified as Alpm
 import Data.List qualified as List
@@ -38,8 +42,6 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Vector qualified as Vector
-import Dhall qualified
-import Dhall.Map qualified
 import Effectful.FileSystem.IO.ByteString qualified
 
 import Import
@@ -68,59 +70,79 @@ run
     :: ( FileSystem :> es
        , IOE :> es
        , Log :> es
+       , Temporary :> es
        , TypedProcess :> es
        )
-    => Maybe FilePath
+    => Config
     -> Eff es ()
-run configFile = do
-    let
-        fp = fromMaybe "config.dhall" configFile
-        substitutions =
-            Dhall.Map.fromList
-                <$> sequenceA
-                    [ ("Build/Type",) <$> Dhall.expected (Dhall.auto @Build)
-                    , ("Config/Type",) <$> Dhall.expected (Dhall.auto @Config)
-                    , ("Database/Type",) <$> Dhall.expected (Dhall.auto @Database)
-                    , ("Package/Type",) <$> Dhall.expected (Dhall.auto @Package)
-                    , ("SiglevelCheck/Type",) <$> Dhall.expected (Dhall.auto @SiglevelCheck)
-                    , ("SiglevelTrust/Type",) <$> Dhall.expected (Dhall.auto @SiglevelTrust)
-                    , ("Versions/Type",) <$> Dhall.expected (Dhall.auto @Versions)
-                    , ("Version/Type",) <$> Dhall.expected (Dhall.auto @Version)
-                    , --
-                      pure ("Database", Config.embedDefault (Dhall.inject @Database))
-                    , pure ("Package", Config.embedDefault (Dhall.inject @Package))
-                    , pure ("SiglevelCheck", Config.embedDefault (Dhall.inject @SiglevelCheck))
-                    , pure ("SiglevelTrust", Config.embedDefault (Dhall.inject @SiglevelTrust))
-                    , pure ("Versions", Config.embedDefault (Dhall.inject @Versions))
-                    -- , pure ("Version"      , embedDefault (Dhall.inject @Version      ))
-                    ]
-    substitutions' <- case substitutions of
-        Failure e -> throwM e
-        Success subst' -> pure subst'
-    let
-        settings =
-            set Dhall.substitutions substitutions'
-                $ Dhall.defaultEvaluateSettings
-    config <- liftIO (Dhall.inputFileWithSettings settings Dhall.auto fp)
+run = runHelper . pure
+
+runFromFile
+    :: ( FileSystem :> es
+       , IOE :> es
+       , Log :> es
+       , Temporary :> es
+       , TypedProcess :> es
+       )
+    => FilePath
+    -> Eff es ()
+runFromFile = runHelper . Config.readConfig
+
+runFromText
+    :: ( FileSystem :> es
+       , IOE :> es
+       , Log :> es
+       , Temporary :> es
+       , TypedProcess :> es
+       )
+    => Text
+    -> Eff es ()
+runFromText = runHelper . Config.parseConfig
+
+runFromExpression
+    :: ( FileSystem :> es
+       , IOE :> es
+       , Log :> es
+       , Temporary :> es
+       , TypedProcess :> es
+       )
+    => Expr Src Import
+    -> Eff es ()
+runFromExpression = runHelper . Config.inputConfig
+
+runHelper
+    :: ( FileSystem :> es
+       , IOE :> es
+       , Log :> es
+       , Temporary :> es
+       , TypedProcess :> es
+       )
+    => Eff es Config
+    -> Eff es ()
+runHelper getConfig = do
+    config <- getConfig
     rootdir <- resolveDir' (Config.configRootDir config)
     dbdir <- resolveDir' (Config.configDatabaseDir config)
     ensureDir dbdir
     Alpm.withAlpm (fromAbsDir rootdir) (fromAbsDir dbdir) $ \h ->
-        run' rootdir dbdir (Config.configPackages config) h
+        runWithHandle (Config.configPackages config) h
 
-run'
-    :: (FileSystem :> es, IOE :> es, Log :> es, TypedProcess :> es)
-    => Path Abs Dir
-    -> Path Abs Dir
-    -> Vector Package
+runWithHandle
+    :: ( FileSystem :> es
+       , IOE :> es
+       , Log :> es
+       , Temporary :> es
+       , TypedProcess :> es
+       )
+    => Vector Package
     -> AlpmHandlePtr
     -> Eff es ()
-run' rootdir dbdir packages h = do
+runWithHandle packages h = do
     withEffToIO (ConcUnlift Ephemeral Unlimited) $ \runInIO ->
         Alpm.optionSetEventCb h (runInIO . eventLogger)
     localDb <- Alpm.getLocaldb h
     case collectDatabases packages of
-        Failure es -> throwM $ ConflictingDatabaseDefinitions es
+        Failure es -> throwIO (ConflictingDatabaseDefinitions es)
         Success dbs -> do
             dbs' <- traverse (registerDatabaseGlobal h) dbs
             updateResult <- Alpm.dbUpdate h dbs' False
@@ -142,7 +164,7 @@ run' rootdir dbdir packages h = do
                         , getLocalPkg h package
                         ]
                 case mpkg of
-                    Nothing -> throwM $ PackageNotFound package
+                    Nothing -> throwIO (PackageNotFound package)
                     Just pkg' -> pure pkg'
             origin <- Alpm.pkgGetOrigin pkg'
             logTrace_
@@ -225,7 +247,9 @@ eventLogger evt@(AlpmEvent _) = logTrace_ $ display evt
 eventLogger evt = logInfo_ $ display evt
 
 answering
-    :: (IOE :> es, Log :> es)
+    :: ( IOE :> es
+       , Log :> es
+       )
     => Package
     -> AlpmQuestion
     -> Eff es ()
@@ -235,7 +259,7 @@ answering package (AlpmQuestionSelectProvider' dependency candidates cb) = do
         providers = Config.packageProviders package
 
     dependency' <- Alpm.depComputeString dependency
-    candidates' <- traverse (fmap Text.pack . Alpm.pkgGetName) candidates
+    candidates' <- traverse Alpm.pkgGetName candidates
     case fmap head . nonEmpty $ List.intersect (Vector.toList providers) candidates' of
         Just provider | Just i <- List.elemIndex provider candidates' -> do
             logInfo_
@@ -246,11 +270,13 @@ answering package (AlpmQuestionSelectProvider' dependency candidates cb) = do
                 <> " for "
                 <> display (Text.pack dependency')
             liftIO $ cb i
-        _ -> throwM $ NoProviderFound name dependency' providers candidates'
+        _ -> throwIO (NoProviderFound name dependency' providers candidates')
 answering pkg (AlpmQuestion qt) = logTrace_ $ display (show @Text (pkg, qt))
 
 getSyncPkg
-    :: (IOE :> es, Log :> es)
+    :: ( IOE :> es
+       , Log :> es
+       )
     => AlpmHandlePtr
     -> Package
     -> Eff es (Maybe AlpmPkgPtr)
@@ -277,7 +303,12 @@ getSyncPkg h package = do
     pure res
 
 getBuildPkg
-    :: (FileSystem :> es, IOE :> es, Log :> es, TypedProcess :> es)
+    :: ( FileSystem :> es
+       , IOE :> es
+       , Log :> es
+       , Temporary :> es
+       , TypedProcess :> es
+       )
     => AlpmHandlePtr
     -> Package
     -> Build
@@ -307,7 +338,9 @@ getBuildPkg h package build = do
         (fromAbsFile path')
 
 getLocalPkg
-    :: (IOE :> es, Log :> es)
+    :: ( IOE :> es
+       , Log :> es
+       )
     => AlpmHandlePtr
     -> Package
     -> Eff es (Maybe AlpmPkgPtr)
@@ -357,7 +390,9 @@ collectDatabases =
         pack db = Map.singleton (Config.databaseName db) (Success db)
 
 registerDatabaseGlobal
-    :: (IOE :> es, Log :> es)
+    :: ( IOE :> es
+       , Log :> es
+       )
     => AlpmHandlePtr
     -> Database
     -> Eff es AlpmDbPtr
@@ -412,7 +447,7 @@ toAlpmVersion :: Version -> AlpmVersion
 toAlpmVersion version =
     AlpmVersion
         { alpmVersionEpoch = Config.versionEpoch version
-        , alpmVersionVer = Text.unpack (Config.versionVersion version)
+        , alpmVersionVer = Config.versionVersion version
         , alpmVersionRel = Config.versionRel version
         , alpmVersionSubRel = Config.versionSubrel version
         }

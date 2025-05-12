@@ -5,3 +5,4 @@ cabal.project.local
 /alpm/test/packages/*/pkg/
 /dhalpm/test/.out/
 /dhalpm/test/packages/*/pkg/
+/utils/setup-test-database

@@ -1,0 +1,33 @@
+%NAME%
+test-package
+
+%VERSION%
+1-1
+
+%BASE%
+test-package
+
+%DESC%
+A test package
+
+%URL%
+
+
+%ARCH%
+any
+
+%BUILDDATE%
+1747086995
+
+%INSTALLDATE%
+1747086997
+
+%PACKAGER%
+Unknown Packager
+
+%VALIDATION%
+none
+
+%XDATA%
+pkgtype=pkg
+

@@ -12,7 +12,49 @@ copyright: 2022 Dominik Peteler
 license: BSD-3-Clause
 license-file: LICENSE
 build-type: Simple
--- cabal-gild: discover ./ --include=LICENSE --include=*.md
+-- cabal-gild: discover test/ --include=test/*.dhall --include=test/data/**/*
+extra-source-files:
+  test/data/database/local/ALPM_DB_VERSION
+  test/data/database/local/depends-package-1-1/desc
+  test/data/database/local/depends-package-1-1/files
+  test/data/database/local/depends-package-1-1/mtree
+  test/data/database/local/test-package-1-1/desc
+  test/data/database/local/test-package-1-1/files
+  test/data/database/local/test-package-1-1/mtree
+  test/data/makepkg.conf
+  test/data/mirrorlist.dhall
+  test/data/packages/depends-package/PKGBUILD
+  test/data/packages/depends-package/depends-package-1-1-any.pkg.tar.zst
+  test/data/packages/depmissing-package/PKGBUILD
+  test/data/packages/depmissing-package/depmissing-package-1-1-any.pkg.tar.zst
+  test/data/packages/providers-1/PKGBUILD
+  test/data/packages/providers-1/providers-1-1-1-any.pkg.tar.zst
+  test/data/packages/providers-2/PKGBUILD
+  test/data/packages/providers-2/providers-2-1-1-any.pkg.tar.zst
+  test/data/packages/test-package/PKGBUILD
+  test/data/packages/test-package/test-package-1-1-any.pkg.tar.zst
+  test/data/root/depends-file1
+  test/data/root/depends-file2
+  test/data/root/file1
+  test/data/root/file2
+  test/data/syncdbs/testdb/depends-package-1-1-any.pkg.tar.zst
+  test/data/syncdbs/testdb/depmissing-package-1-1-any.pkg.tar.zst
+  test/data/syncdbs/testdb/providers-1-1-1-any.pkg.tar.zst
+  test/data/syncdbs/testdb/providers-2-1-1-any.pkg.tar.zst
+  test/data/syncdbs/testdb/test-package-1-1-any.pkg.tar.zst
+  test/data/syncdbs/testdb/testdb.db
+  test/data/syncdbs/testdb/testdb.db.tar.gz
+  test/data/syncdbs/testdb/testdb.files
+  test/data/syncdbs/testdb/testdb.files.tar.gz
+  test/empty.dhall
+  test/install-from-build.dhall
+  test/install-from-file.dhall
+  test/install-from-syncdb.dhall
+  test/install-with-dependency.dhall
+  test/providers.dhall
+  test/realworld-simple.dhall
+  test/remove-orphaned.dhall
+
 extra-files:
   ChangeLog.md
   LICENSE
@@ -59,11 +101,13 @@ library
     log-base,
     log-effectful,
     path >=0.8.0,
-    path-io >=1.6.0,
+    path-effectful,
+    path-effectful:extra,
     prettyprinter,
     recursion-schemes,
     relude,
     text-display >=1,
+    text-short,
     typed-process-effectful,
     unliftio,
     unordered-containers,
@@ -106,6 +150,7 @@ test-suite test
   build-depends:
     QuickCheck,
     base,
+    dhall,
     dhalpm,
     directory,
     effectful,

@@ -10,9 +10,10 @@ import Test.Hspec
 import Test.QuickCheck
 
 import Data.Text qualified as Text
-import System.Directory qualified as Directory
 
 import Archlinux.Alpm
+
+import Archlinux.Alpm.Package.Types qualified as Package
 
 spec :: Spec
 spec = do
@@ -20,9 +21,8 @@ spec = do
     -- TODO: Parsing package versions
 
     describe "alpm_list_t" $ do
-        it "fromAlpmList . toAlpmList"
-            $ property
-            $ \lst -> withCStrings lst $ \lst' -> do
+        it "fromAlpmList . toAlpmList" . property $ do
+            \lst -> withCStrings lst $ \lst' -> do
                 res <- withAlpmList lst' fromAlpmList
                 res `shouldBe` lst'
 
@@ -31,7 +31,7 @@ spec = do
             let
                 ref =
                     AlpmDepend
-                        { alpmDependName = "pkg"
+                        { alpmDependName = [Package.name|pkg|]
                         , alpmDependConstraint = ConstraintAny
                         }
             res <- alloca $ \p -> do
@@ -51,7 +51,7 @@ spec = do
             let
                 x =
                     AlpmDepend
-                        { alpmDependName = "pkg"
+                        { alpmDependName = [Package.name|pkg|]
                         , alpmDependConstraint = ConstraintAny
                         }
                 ref = "pkg"
@@ -61,26 +61,26 @@ spec = do
             res `shouldBe` ref
 
     describe "Alpm databases" $ do
-        testAlpm "Local db name" $ \h -> do
+        testAlpm "Local db name" False $ \_getPackageFile _getSyncdbUrl h -> do
             let
                 ref = "local"
             db <- getLocaldb h
             dbGetName db `shouldReturn` ref
 
-        testAlpm "Sync db name" $ \h -> do
+        testAlpm "Sync db name" False $ \_getPackageFile _getSyncdbUrl h -> do
             let
                 ref = "testdb"
             db <- registerSyncdb h "testdb" []
             dbGetName db `shouldReturn` ref
 
-        testAlpm "Double register sync db" $ \h -> do
+        testAlpm "Double register sync db" False $ \_getPackageFile _getSyncdbUrl h -> do
             let
                 ref = ["testdb"]
             void $ registerSyncdb h "testdb" []
             void $ registerSyncdb h "testdb" []
             (getSyncdbs h >>= mapM dbGetName) `shouldReturn` ref
 
-        testAlpm "Register sync db ordering" $ \h -> do
+        testAlpm "Register sync db ordering" False $ \_getPackageFile _getSyncdbUrl h -> do
             let
                 ref = ["testdb", "testdb2", "testdb3"]
             void $ registerSyncdb h "testdb" []
@@ -89,44 +89,45 @@ spec = do
             void $ registerSyncdb h "testdb3" []
             (getSyncdbs h >>= mapM dbGetName) `shouldReturn` ref
 
-        testAlpm "Update sync db" $ \h -> do
+        testAlpm "Update sync db" False $ \_getPackageFile getSyncdbUrl h -> do
             let
                 ref =
                     ( []
                     ,
-                        [ "depends-package"
-                        , "depmissing-package"
-                        , "providers-1"
-                        , "providers-2"
-                        , "test-package"
+                        [ [Package.name|depends-package|]
+                        , [Package.name|depmissing-package|]
+                        , [Package.name|providers-1|]
+                        , [Package.name|providers-2|]
+                        , [Package.name|test-package|]
                         ]
                     )
-            cur <- Directory.getCurrentDirectory
-            let
-                dbUri = "file://" ++ cur ++ "/test/databases/testdb"
             db <- registerSyncdb h "testdb" []
             pkgs1 <- dbGetPkgcache db >>= mapM pkgGetName
-            dbAddServer h db dbUri
+            dbAddServer h db (getSyncdbUrl [reldir|testdb|])
             dbUpdate h [db] False `shouldReturn` DbUpdated
             pkgs2 <- dbGetPkgcache db >>= mapM pkgGetName
             (pkgs1, pkgs2) `shouldBe` ref
 
-        testAlpmWithDatabase "Find package" [reldir|localdb|] $ \h -> do
+        testAlpm "Find package" True $ \_getPackageFile _getSyncdbUrl h -> do
             localDb <- getLocaldb h
             mpkg <- findDbsSatisfier h [localDb] "test-package"
             mpkg' <- traverse pkgGetName mpkg
-            mpkg' `shouldBe` Just "test-package"
+            mpkg' `shouldBe` Just [Package.name|test-package|]
 
         describe "Install package to local db" $ do
-            testAlpm "From file" $ \h -> do
+            testAlpm "From file" False $ \getPackageFile _getSyncdbUrl h -> do
                 let
-                    ref = ([], ["test-package"])
+                    ref = ([], [[Package.name|test-package|]])
 
                 localDb <- getLocaldb h
                 pkgs1 <- dbGetPkgcache localDb >>= mapM pkgGetName
 
                 pkg <-
-                    pkgLoad h False [] "test/databases/testdb/test-package-1-1-any.pkg.tar.zst"
+                    pkgLoad
+                        h
+                        False
+                        []
+                        (getPackageFile [relfile|test-package/test-package-1-1-any.pkg.tar.zst|])
                 withTrans h [] $ do
                     addPkg h pkg
                     transPrepare h
@@ -136,20 +137,17 @@ spec = do
 
                 (pkgs1, pkgs2) `shouldBe` ref
 
-            testAlpm "From sync db" $ \h -> do
+            testAlpm "From sync db" False $ \_getPackageFile getSyncdbUrl h -> do
                 let
-                    ref = ([], ["test-package"])
+                    ref = ([], [[Package.name|test-package|]])
 
                 localDb <- getLocaldb h
                 pkgs1 <- dbGetPkgcache localDb >>= mapM pkgGetName
 
-                cur <- Directory.getCurrentDirectory
-                let
-                    dbUri = "file://" ++ cur ++ "/test/databases/testdb"
                 db <- registerSyncdb h "testdb" []
-                dbAddServer h db dbUri
+                dbAddServer h db (getSyncdbUrl [reldir|testdb|])
                 dbUpdate h [db] False `shouldReturn` DbUpdated
-                Just pkg <- dbGetPkg db "test-package"
+                Just pkg <- dbGetPkg db [Package.name|test-package|]
                 withTrans h [] $ do
                     addPkg h pkg
                     transPrepare h
@@ -159,7 +157,7 @@ spec = do
 
                 (pkgs1, pkgs2) `shouldBe` ref
 
-            testAlpm "With missing dependencies" $ \h -> do
+            testAlpm "With missing dependencies" False $ \_getPackageFile getSyncdbUrl h -> do
                 let
                     ref :: AlpmError AlpmTransactionError
                     ref =
@@ -167,58 +165,65 @@ spec = do
                             $ TransPrepareDepmissingError
                                 [ AlpmDepmissing
                                     "depmissing-package"
-                                    (AlpmDepend "missing-package" ConstraintAny)
+                                    (AlpmDepend [Package.name|missing-package|] ConstraintAny)
                                     Nothing
                                 ]
 
-                cur <- Directory.getCurrentDirectory
-                let
-                    dbUri = "file://" ++ cur ++ "/test/databases/testdb"
                 db <- registerSyncdb h "testdb" []
-                dbAddServer h db dbUri
+                dbAddServer h db (getSyncdbUrl [reldir|testdb|])
                 dbUpdate h [db] False `shouldReturn` DbUpdated
-                Just pkg <- dbGetPkg db "depmissing-package"
+                Just pkg <- dbGetPkg db [Package.name|depmissing-package|]
                 withTrans h [] $ do
                     addPkg h pkg
                     transPrepare h `shouldThrow` (== ref)
 
-testAlpm :: Text -> (AlpmHandlePtr -> Expectation) -> Spec
-testAlpm n k = do
-    let
-        baseDir = [reldir|test/.out/alpm|]
-    testFn <-
-        runIO $ parseRelDir $ Text.unpack $ Text.replace " " "_" $ Text.toLower n
-    let
-        dir = baseDir </> testFn
-        dbdir = dir </> [reldir|db|]
-        rootdir = dir </> [reldir|root|]
-        setup = do
-            whenM (doesDirExist dir)
-                $ removeDirRecur dir
-            ensureDir dbdir
-            ensureDir rootdir
-    before_ setup
-        $ it (Text.unpack n)
-        $ withAlpm (fromRelDir rootdir) (fromRelDir dbdir) k
+testAlpm
+    :: Text
+    -> Bool
+    -> ( (Path Rel File -> FilePath)
+         -> (Path Rel Dir -> String)
+         -> AlpmHandlePtr
+         -> Expectation
+       )
+    -> Spec
+testAlpm name setupDirectories action = do
+    dataDir <- runIO (makeAbsolute [reldir|test/data|])
+    testDir <- runIO $ do
+        testDirName <-
+            parseRelDir
+                . Text.unpack
+                . Text.replace " " "_"
+                . Text.toLower
+                $ name
+        makeAbsolute ([reldir|test/.out|] </> testDirName)
 
-testAlpmWithDatabase
-    :: Text -> Path Rel Dir -> (AlpmHandlePtr -> Expectation) -> Spec
-testAlpmWithDatabase n tplDir k = do
     let
-        baseDir = [reldir|test/.out/alpm|]
-        dataDir = [reldir|test/databases|]
-    testFn <-
-        runIO $ parseRelDir $ Text.unpack $ Text.replace " " "_" $ Text.toLower n
-    let
-        dir = baseDir </> testFn
-        dbdir = dir </> [reldir|db|]
-        rootdir = dir </> [reldir|root|]
+        pristineDatabaseDir = dataDir </> [reldir|database|]
+        pristineRootDir = dataDir </> [reldir|root|]
+        databaseDir = testDir </> [reldir|database|]
+        rootDir = testDir </> [reldir|root|]
+
+        getPackageFile :: Path Rel File -> FilePath
+        getPackageFile path =
+            fromAbsFile (dataDir </> [reldir|packages|] </> path)
+
+        getSyncdbUrl :: Path Rel Dir -> String
+        getSyncdbUrl db =
+            "file://" <> fromAbsDir (dataDir </> [reldir|syncdbs|] </> db)
+
+        setup :: IO ()
         setup = do
-            whenM (doesDirExist dir)
-                $ removeDirRecur dir
-            copyDirRecur (dataDir </> tplDir) dir
-            ensureDir dbdir
-            ensureDir rootdir
-    before_ setup
-        $ it (Text.unpack n)
-        $ withAlpm (fromRelDir rootdir) (fromRelDir dbdir) k
+            whenM (doesDirExist testDir) (removeDirRecur testDir)
+            ensureDir testDir
+            if setupDirectories
+                then do
+                    copyDirRecur pristineDatabaseDir databaseDir
+                    copyDirRecur pristineRootDir rootDir
+                else do
+                    ensureDir databaseDir
+                    ensureDir rootDir
+    before_ setup . it (Text.unpack name) $ do
+        withAlpm
+            (fromAbsDir rootDir)
+            (fromAbsDir databaseDir)
+            (action getPackageFile getSyncdbUrl)

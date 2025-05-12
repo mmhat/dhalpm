@@ -1,8 +1,0 @@
-pkgbase = test-package
-	pkgdesc = A test package
-	pkgver = 1
-	pkgrel = 1
-	arch = any
-
-pkgname = test-package
-

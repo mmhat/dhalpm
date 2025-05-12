@@ -1,0 +1,5 @@
+%FILES%
+depends-file1
+depends-file2
+testdir/
+

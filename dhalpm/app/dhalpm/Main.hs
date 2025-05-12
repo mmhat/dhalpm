@@ -4,12 +4,12 @@ import Effectful
 import Effectful.FileSystem (runFileSystem)
 import Effectful.Log (runLog)
 import Effectful.Process.Typed (runTypedProcess)
+import Effectful.Temporary (runTemporary)
 import Log.Backend.StandardOutput (withStdOutLogger)
 import Prelude
 
-import Run
-
 import Options
+import Run
 
 main :: IO ()
 main = do
@@ -19,7 +19,8 @@ main = do
         logLevel = optionsLogLevel options
     withStdOutLogger $ \logger -> do
         runEff
-            . runLog "" logger logLevel
             . runFileSystem
+            . runLog "" logger logLevel
+            . runTemporary
             . runTypedProcess
-            $ run configFile
+            $ runFromFile configFile

@@ -1,0 +1,36 @@
+%NAME%
+depends-package
+
+%VERSION%
+1-1
+
+%BASE%
+depends-package
+
+%DESC%
+A test package with dependency
+
+%URL%
+
+
+%ARCH%
+any
+
+%BUILDDATE%
+1747080420
+
+%INSTALLDATE%
+1747080430
+
+%PACKAGER%
+Unknown Packager
+
+%VALIDATION%
+none
+
+%DEPENDS%
+test-package
+
+%XDATA%
+pkgtype=pkg
+

@@ -17,7 +17,7 @@ type Command = ()
 
 data Options = Options
     { optionsLogLevel :: LogLevel
-    , optionsConfig :: (Maybe FilePath)
+    , optionsConfig :: FilePath
     }
 
 parse :: IO (Options, Command)
@@ -25,7 +25,7 @@ parse =
     simpleOptions
         $(simpleVersion version)
         ""
-        "Launch and query autostart profiles"
+        "A declarative package manager based on libalpm"
         optionsParser
         empty
 
@@ -43,10 +43,11 @@ optionsParser =
                     , "attention"
                     ]
             )
-        <*> (optional . strOption)
+        <*> strOption
             ( short 'c'
                 <> long "config-file"
                 <> metavar "FILE"
+                <> value "config.dhall"
                 <> help "Use this configuration file"
                 <> action "file"
             )

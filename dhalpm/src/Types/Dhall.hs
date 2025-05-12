@@ -4,30 +4,114 @@
 {-# LANGUAGE ExplicitNamespaces #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Types.Dhall where
+module Types.Dhall (
+    readConfig,
+    parseConfig,
+    inputConfig,
+    getSubstitutions,
+    substitutions,
+    Config (..),
+    Database (..),
+    Package (..),
+    Build (..),
+    Version (..),
+    Versions (..),
+    SiglevelCheck (..),
+    SiglevelTrust (..),
+) where
 
 import Archlinux.Alpm (
     AlpmPkgName,
     emptyAlpmPkgName,
-    parseAlpmPkgName,
     unAlpmPkgName,
  )
+import Archlinux.Alpm.Package.Types (parsePackageNameFromText)
 import Data.Default.Class (Default)
 import Data.Either.Validation (Validation (..))
+import Data.Text.Short (ShortText)
 import Data.Vector (Vector)
-import Dhall (Decoder (..), Encoder (..), FromDhall (..), ToDhall (..))
+import Dhall (
+    Decoder (..),
+    Encoder (..),
+    Expector,
+    FromDhall (..),
+    ToDhall (..),
+ )
+import Dhall.Core (Expr, Import)
 import Dhall.Deriving (Codec (..), DropPrefix, Field, SpinalCase, type (<<<))
+import Dhall.Src (Src)
+import Dhall.Substitution (Substitutions)
+import Effectful
+import Effectful.Exception (throwIO)
 import Relude hiding (Any)
+import Relude.Extra.Lens (set)
 
 import Data.Default.Class qualified as Default
 import Data.Text qualified as Text
+import Data.Text.Short qualified as ShortText
 import Data.Vector qualified as Vector
 import Dhall qualified
 import Dhall.Core qualified
 import Dhall.Map qualified
-import Dhall.Src qualified
 
 default (Text)
+
+readConfig :: (IOE :> es) => FilePath -> Eff es Config
+readConfig fp = do
+    substitutions' <- getSubstitutions
+    let
+        settings =
+            set Dhall.substitutions substitutions'
+                $ Dhall.defaultEvaluateSettings
+    liftIO (Dhall.inputFileWithSettings settings (Dhall.auto @Config) fp)
+
+parseConfig :: (IOE :> es) => Text -> Eff es Config
+parseConfig text = do
+    substitutions' <- getSubstitutions
+    let
+        settings =
+            set Dhall.substitutions substitutions'
+                $ Dhall.defaultInputSettings
+    liftIO (Dhall.inputWithSettings settings (Dhall.auto @Config) text)
+
+inputConfig :: (IOE :> es) => Expr Src Import -> Eff es Config
+inputConfig expression = do
+    substitutions' <- getSubstitutions
+    let
+        decoder :: Decoder Config
+        decoder = Dhall.auto
+
+        settings =
+            set Dhall.substitutions substitutions'
+                $ Dhall.defaultInputSettings
+
+    liftIO (Dhall.fromExprWithSettings settings decoder expression)
+
+getSubstitutions :: Eff es (Substitutions Src Void)
+getSubstitutions = case substitutions of
+    Failure e -> throwIO e
+    Success substitutions' -> pure substitutions'
+
+substitutions :: Expector (Substitutions Src Void)
+substitutions =
+    Dhall.Map.fromList
+        <$> sequenceA
+            [ ("Build/Type",) <$> Dhall.expected (Dhall.auto @Build)
+            , ("Config/Type",) <$> Dhall.expected (Dhall.auto @Config)
+            , ("Database/Type",) <$> Dhall.expected (Dhall.auto @Database)
+            , ("Package/Type",) <$> Dhall.expected (Dhall.auto @Package)
+            , ("SiglevelCheck/Type",) <$> Dhall.expected (Dhall.auto @SiglevelCheck)
+            , ("SiglevelTrust/Type",) <$> Dhall.expected (Dhall.auto @SiglevelTrust)
+            , ("Versions/Type",) <$> Dhall.expected (Dhall.auto @Versions)
+            , ("Version/Type",) <$> Dhall.expected (Dhall.auto @Version)
+            , --
+              pure ("Database", embedDefault (Dhall.inject @Database))
+            , pure ("Package", embedDefault (Dhall.inject @Package))
+            , pure ("SiglevelCheck", embedDefault (Dhall.inject @SiglevelCheck))
+            , pure ("SiglevelTrust", embedDefault (Dhall.inject @SiglevelTrust))
+            , pure ("Versions", embedDefault (Dhall.inject @Versions))
+            -- , pure ("Version"      , embedDefault (Dhall.inject @Version      ))
+            ]
 
 data Config = Config
     { configRootDir :: FilePath
@@ -45,7 +129,7 @@ data Package = Package
     , packageSigcheck :: SiglevelCheck
     , packageSigtrust :: SiglevelTrust
     , packageDatabases :: Vector Database
-    , packageProviders :: Vector Text
+    , packageProviders :: Vector AlpmPkgName
     , packageBuild :: Maybe Build
     }
     deriving stock (Generic, Show)
@@ -65,11 +149,11 @@ instance Default Package where
             , packageBuild = Nothing
             }
 
-packageNameToString :: Package -> String
-packageNameToString = unAlpmPkgName . packageName
+packageNameToShortText :: Package -> ShortText
+packageNameToShortText = unAlpmPkgName . packageName
 
 packageNameToText :: Package -> Text
-packageNameToText = Text.pack . packageNameToString
+packageNameToText = ShortText.toText . packageNameToShortText
 
 data Build = Build
     { buildPath :: FilePath
@@ -144,7 +228,7 @@ instance Default Versions where
 
 data Version = Version
     { versionEpoch :: Maybe Natural
-    , versionVersion :: Text
+    , versionVersion :: ShortText
     , versionRel :: Natural
     , versionSubrel :: Maybe Natural
     }
@@ -157,7 +241,7 @@ instance Default Version where
     def =
         Version
             { versionEpoch = Nothing
-            , versionVersion = Text.empty
+            , versionVersion = ShortText.empty
             , versionRel = 1
             , versionSubrel = Nothing
             }
@@ -169,7 +253,7 @@ instance FromDhall AlpmPkgName where
 
             extract expr = case Dhall.extract decoder expr of
                 Failure es -> Failure es
-                Success xs -> case parseAlpmPkgName xs of
+                Success xs -> case parsePackageNameFromText xs of
                     Left e ->
                         Dhall.extractError
                             . Text.pack
