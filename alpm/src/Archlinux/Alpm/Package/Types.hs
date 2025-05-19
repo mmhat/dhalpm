@@ -1,12 +1,7 @@
 {-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE ExtendedLiterals #-}
-{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE MultiWayIf #-}
-{-# LANGUAGE QualifiedDo #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE UnboxedTuples #-}
 
 module Archlinux.Alpm.Package.Types where
 

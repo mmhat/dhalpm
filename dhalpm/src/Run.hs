@@ -220,30 +220,29 @@ runWithHandle packages h = do
             Just !pkg' -> Alpm.pkgSetReason h pkg' AlpmPkgReasonExplicit
 
 eventLogger :: (Log :> es) => AlpmEvent -> Eff es ()
-eventLogger evt@(AlpmEvent AlpmEventCheckdepsStart) = logInfo_ $ display evt
-eventLogger evt@(AlpmEvent AlpmEventDatabaseMissing) = logAttention_ $ display evt
-eventLogger evt@(AlpmEvent AlpmEventDbRetrieveDone) = logInfo_ $ display evt
-eventLogger evt@(AlpmEvent AlpmEventDbRetrieveFailed) = logAttention_ $ display evt
-eventLogger evt@(AlpmEvent AlpmEventDbRetrieveStart) = logInfo_ $ display evt
-eventLogger evt@(AlpmEvent AlpmEventDiskspaceStart) = logInfo_ $ display evt
-eventLogger evt@(AlpmEvent AlpmEventFileconflictsStart) = logInfo_ $ display evt
-eventLogger evt@(AlpmEvent AlpmEventHookStart) = logInfo_ $ display evt
-eventLogger evt@(AlpmEvent AlpmEventHookRunStart) = logInfo_ $ display evt
-eventLogger evt@(AlpmEvent AlpmEventIntegrityStart) = logInfo_ $ display evt
-eventLogger evt@(AlpmEvent AlpmEventInterconflictsStart) = logInfo_ $ display evt
-eventLogger evt@(AlpmEvent AlpmEventKeyringStart) = logInfo_ $ display evt
-eventLogger evt@(AlpmEvent AlpmEventKeyDownloadStart) = logInfo_ $ display evt
-eventLogger evt@(AlpmEvent AlpmEventLoadStart) = logInfo_ $ display evt
-eventLogger evt@(AlpmEvent AlpmEventOptdepRemoval) = logInfo_ $ display evt
-eventLogger evt@(AlpmEvent AlpmEventPackageOperationStart) = logInfo_ $ display evt
-eventLogger evt@(AlpmEvent AlpmEventPacnewCreated) = logInfo_ $ display evt
-eventLogger evt@(AlpmEvent AlpmEventPacsaveCreated) = logInfo_ $ display evt
-eventLogger evt@(AlpmEvent AlpmEventPkgRetrieveFailed) = logAttention_ $ display evt
-eventLogger evt@(AlpmEvent AlpmEventPkgRetrieveStart) = logInfo_ $ display evt
-eventLogger evt@(AlpmEvent AlpmEventResolvedepsStart) = logInfo_ $ display evt
-eventLogger evt@(AlpmEvent AlpmEventScriptletInfo) = logInfo_ $ display evt
-eventLogger evt@(AlpmEvent AlpmEventTransactionStart) = logInfo_ $ display evt
-eventLogger evt@(AlpmEvent _) = logTrace_ $ display evt
+eventLogger evt@(CheckdepsStartEvent{}) = logInfo_ $ display evt
+eventLogger evt@(DatabaseMissingEvent{}) = logAttention_ $ display evt
+eventLogger evt@(DbRetrieveDoneEvent{}) = logInfo_ $ display evt
+eventLogger evt@(DbRetrieveFailedEvent{}) = logAttention_ $ display evt
+eventLogger evt@(DbRetrieveStartEvent{}) = logInfo_ $ display evt
+eventLogger evt@(DiskspaceStartEvent{}) = logInfo_ $ display evt
+eventLogger evt@(FileconflictsStartEvent{}) = logInfo_ $ display evt
+eventLogger evt@(HookStartEvent{}) = logInfo_ $ display evt
+eventLogger evt@(HookRunStartEvent{}) = logInfo_ $ display evt
+eventLogger evt@(IntegrityStartEvent{}) = logInfo_ $ display evt
+eventLogger evt@(InterconflictsStartEvent{}) = logInfo_ $ display evt
+eventLogger evt@(KeyringStartEvent{}) = logInfo_ $ display evt
+eventLogger evt@(KeyDownloadStartEvent{}) = logInfo_ $ display evt
+eventLogger evt@(LoadStartEvent{}) = logInfo_ $ display evt
+eventLogger evt@(OptdepRemovalEvent{}) = logInfo_ $ display evt
+eventLogger evt@(PackageOperationStartEvent{}) = logInfo_ $ display evt
+eventLogger evt@(PacnewCreatedEvent{}) = logInfo_ $ display evt
+eventLogger evt@(PacsaveCreatedEvent{}) = logInfo_ $ display evt
+eventLogger evt@(PkgRetrieveFailedEvent{}) = logAttention_ $ display evt
+eventLogger evt@(PkgRetrieveStartEvent{}) = logInfo_ $ display evt
+eventLogger evt@(ResolvedepsStartEvent{}) = logInfo_ $ display evt
+eventLogger evt@(ScriptletInfoEvent{}) = logInfo_ $ display evt
+eventLogger evt@(TransactionStartEvent{}) = logInfo_ $ display evt
 eventLogger evt = logInfo_ $ display evt
 
 answering
@@ -253,13 +252,13 @@ answering
     => Package
     -> AlpmQuestion
     -> Eff es ()
-answering package (AlpmQuestionSelectProvider' dependency candidates cb) = do
+answering package (SelectProviderQuestion q) = do
     let
         name = Config.packageName package
         providers = Config.packageProviders package
 
-    dependency' <- Alpm.depComputeString dependency
-    candidates' <- traverse Alpm.pkgGetName candidates
+    dependency' <- Alpm.depComputeString (Alpm.selectProviderDepend q)
+    candidates' <- traverse Alpm.pkgGetName (Alpm.selectProviderProviders q)
     case fmap head . nonEmpty $ List.intersect (Vector.toList providers) candidates' of
         Just provider | Just i <- List.elemIndex provider candidates' -> do
             logInfo_
@@ -269,9 +268,8 @@ answering package (AlpmQuestionSelectProvider' dependency candidates cb) = do
                 <> display provider
                 <> " for "
                 <> display (Text.pack dependency')
-            liftIO $ cb i
+            liftIO $ Alpm.selectProviderAnswer q i
         _ -> throwIO (NoProviderFound name dependency' providers candidates')
-answering pkg (AlpmQuestion qt) = logTrace_ $ display (show @Text (pkg, qt))
 
 getSyncPkg
     :: ( IOE :> es

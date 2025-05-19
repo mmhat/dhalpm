@@ -97,9 +97,14 @@ library
   -- Generated with c2hs
   exposed-modules:
     Archlinux.Alpm
+    Archlinux.Alpm.Binding
+
+  exposed-modules:
     Archlinux.Alpm.Package.Types
+    Archlinux.Alpm.Types
 
   other-modules:
+    Archlinux.Alpm.Utils
     Parser
     Parser.TH
     ShortByteString.Extra
