@@ -473,18 +473,36 @@ peekAlpmQuestion p = do
         AlpmQuestionImportKey -> ImportKeyQuestion <$> peekImportKeyQuestion (castPtr p)
 
 data instance AlpmQuestionFor 'AlpmQuestionInstallIgnorepkg = InstallIgnorepkg
+    { installIgnorepkgAnswer :: Int -> IO ()
+    , installIgnorepkgPkg :: AlpmPkgPtr
+    }
     deriving (Show)
 
 data instance AlpmQuestionFor 'AlpmQuestionReplacePkg = ReplacePkg
+    { replacePkgAnswer :: Int -> IO ()
+    , replacePkgOldpkg :: AlpmPkgPtr
+    , replacePkgNewpkg :: AlpmPkgPtr
+    , replacePkgNewdb :: AlpmDbPtr
+    }
     deriving (Show)
 
 data instance AlpmQuestionFor 'AlpmQuestionConflictPkg = ConflictPkg
+    { conflictPkgAnswer :: Int -> IO ()
+    , conflictPkgConflict :: AlpmConflictPtr
+    }
     deriving (Show)
 
 data instance AlpmQuestionFor 'AlpmQuestionCorruptedPkg = CorruptedPkg
+    { corruptedPkgAnswer :: Int -> IO ()
+    , corruptedPkgFilepath :: CString
+    , corruptedPkgReason :: AlpmErrNo -- TODO: Should we set this?
+    }
     deriving (Show)
 
 data instance AlpmQuestionFor 'AlpmQuestionRemovePkgs = RemovePkgs
+    { removePkgsAnswer :: Int -> IO ()
+    , removePkgsPackages :: [AlpmPkgPtr]
+    }
     deriving (Show)
 
 data instance AlpmQuestionFor 'AlpmQuestionSelectProvider = SelectProvider
@@ -495,32 +513,69 @@ data instance AlpmQuestionFor 'AlpmQuestionSelectProvider = SelectProvider
     deriving (Show)
 
 data instance AlpmQuestionFor 'AlpmQuestionImportKey = ImportKey
+    { importKeyImport :: Int -> IO ()
+    , importKeyUid :: CString
+    , importKeyFingerprint :: CString
+    }
     deriving (Show)
 
 peekInstallIgnorepkgQuestion
     :: Ptr (AlpmQuestionFor 'AlpmQuestionInstallIgnorepkg)
     -> IO (AlpmQuestionFor 'AlpmQuestionInstallIgnorepkg)
-peekInstallIgnorepkgQuestion _p = pure InstallIgnorepkg
+peekInstallIgnorepkgQuestion p = do
+    let
+        p' :: AlpmQuestionInstallIgnorepkgPtr
+        p' = castPtr p
+    InstallIgnorepkg
+        <$> pure (set__question_install_ignorepkg_t__install p' . fromIntegral)
+        <*> get__question_install_ignorepkg_t__pkg p'
 
 peekReplacePkgQuestion
     :: Ptr (AlpmQuestionFor 'AlpmQuestionReplacePkg)
     -> IO (AlpmQuestionFor 'AlpmQuestionReplacePkg)
-peekReplacePkgQuestion _p = pure ReplacePkg
+peekReplacePkgQuestion p = do
+    let
+        p' :: AlpmQuestionReplacePtr
+        p' = castPtr p
+    ReplacePkg
+        <$> pure (set__question_replace_t__replace p' . fromIntegral)
+        <*> get__question_replace_t__oldpkg p'
+        <*> get__question_replace_t__newpkg p'
+        <*> get__question_replace_t__newdb p'
 
 peekConflictPkgQuestion
     :: Ptr (AlpmQuestionFor 'AlpmQuestionConflictPkg)
     -> IO (AlpmQuestionFor 'AlpmQuestionConflictPkg)
-peekConflictPkgQuestion _p = pure ConflictPkg
+peekConflictPkgQuestion p = do
+    let
+        p' :: AlpmQuestionConflictPtr
+        p' = castPtr p
+    ConflictPkg
+        <$> pure (set__question_conflict_t__remove p' . fromIntegral)
+        <*> get__question_conflict_t__conflict p'
 
 peekCorruptedPkgQuestion
     :: Ptr (AlpmQuestionFor 'AlpmQuestionCorruptedPkg)
     -> IO (AlpmQuestionFor 'AlpmQuestionCorruptedPkg)
-peekCorruptedPkgQuestion _p = pure CorruptedPkg
+peekCorruptedPkgQuestion p = do
+    let
+        p' :: AlpmQuestionCorruptedPtr
+        p' = castPtr p
+    CorruptedPkg
+        <$> pure (set__question_corrupted_t__remove p' . fromIntegral)
+        <*> get__question_corrupted_t__filepath p'
+        <*> (toEnum . fromIntegral <$> get__question_corrupted_t__reason p')
 
 peekRemovePkgsQuestion
     :: Ptr (AlpmQuestionFor 'AlpmQuestionRemovePkgs)
     -> IO (AlpmQuestionFor 'AlpmQuestionRemovePkgs)
-peekRemovePkgsQuestion _p = pure RemovePkgs
+peekRemovePkgsQuestion p = do
+    let
+        p' :: AlpmQuestionRemovePkgsPtr
+        p' = castPtr p
+    RemovePkgs
+        <$> pure (set__question_remove_pkgs_t__skip p' . fromIntegral)
+        <*> (fromAlpmList =<< get__question_remove_pkgs_t__packages p')
 
 peekSelectProviderQuestion
     :: Ptr (AlpmQuestionFor 'AlpmQuestionSelectProvider)
@@ -537,7 +592,14 @@ peekSelectProviderQuestion p = do
 peekImportKeyQuestion
     :: Ptr (AlpmQuestionFor 'AlpmQuestionImportKey)
     -> IO (AlpmQuestionFor 'AlpmQuestionImportKey)
-peekImportKeyQuestion _p = pure ImportKey
+peekImportKeyQuestion p = do
+    let
+        p' :: AlpmQuestionImportKeyPtr
+        p' = castPtr p
+    ImportKey
+        <$> pure (set__question_import_key_t__import p' . fromIntegral)
+        <*> get__question_import_key_t__uid p'
+        <*> get__question_import_key_t__fingerprint p'
 
 --------------------------------------------------------------------------------
 -- Packages

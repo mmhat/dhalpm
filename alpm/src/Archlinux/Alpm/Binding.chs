@@ -48,12 +48,41 @@ module Archlinux.Alpm.Binding
       -- ** Questions
     , AlpmQuestionFor
     , AlpmQuestionPtr
+    , AlpmQuestionConflictPtr
+    , AlpmQuestionCorruptedPtr
+    , AlpmQuestionImportKeyPtr
+    , AlpmQuestionInstallIgnorepkgPtr
+    , AlpmQuestionRemovePkgsPtr
+    , AlpmQuestionReplacePtr
     , AlpmQuestionSelectProviderPtr
     , AlpmQuestionType(..)
     , get__question_t__type
+
+    , set__question_conflict_t__remove
+    , get__question_conflict_t__conflict
+
+    , set__question_corrupted_t__remove
+    , get__question_corrupted_t__filepath
+    , get__question_corrupted_t__reason
+
+    , set__question_import_key_t__import
+    , get__question_import_key_t__uid
+    , get__question_import_key_t__fingerprint
+
+    , set__question_install_ignorepkg_t__install
+    , get__question_install_ignorepkg_t__pkg
+
+    , set__question_remove_pkgs_t__skip
+    , get__question_remove_pkgs_t__packages
+
+    , set__question_replace_t__replace
+    , get__question_replace_t__oldpkg
+    , get__question_replace_t__newpkg
+    , get__question_replace_t__newdb
+
+    , set__question_select_provider_t__use_index
     , get__question_select_provider_t__depend
     , get__question_select_provider_t__providers
-    , set__question_select_provider_t__use_index
 
       -- * Databases
     , AlpmDbPtr
@@ -196,34 +225,40 @@ import {-# SOURCE #-} Archlinux.Alpm.Types
 {#enum alpm_siglevel_t          as AlpmSiglevel         {underscoreToCase} deriving (Eq, Generic, Show) #}
 {#enum alpm_transflag_t         as AlpmTransflag        {underscoreToCase} deriving (Eq, Generic, Show) #}
 
-{#pointer *alpm_backup_t                   as AlpmBackupPtr                                     #}
-{#pointer  alpm_cb_event                   as AlpmCbEventFunPtr                                 #}
-{#pointer  alpm_cb_question                as AlpmCbQuestionFunPtr                              #}
-{#pointer *alpm_conflict_t                 as AlpmConflictPtr               -> AlpmConflict     #}
-{#pointer *alpm_db_t                       as AlpmDbPtr                                         #}
-{#pointer *alpm_depend_t                   as AlpmDependPtr                 -> AlpmDepend       #}
-{#pointer *alpm_depmissing_t               as AlpmDepmissingPtr             -> AlpmDepmissing   #}
-{#pointer *alpm_errno_t                    as AlpmErrNoPtr                                      #}
-{#pointer *alpm_event_t                    as AlpmEventPtr                  -> AlpmEvent        #}
-{#pointer *alpm_event_package_operation_t  as AlpmEventPackageOperationPtr                      #}
-{#pointer *alpm_event_optdep_removal_t     as AlpmEventOptdepRemovalPtr                         #}
-{#pointer *alpm_event_scriptlet_info_t     as AlpmEventScriptletInfoPtr                         #}
-{#pointer *alpm_event_database_missing_t   as AlpmEventDatabaseMissingPtr                       #}
-{#pointer *alpm_event_pkgdownload_t        as AlpmEventPkgdownloadPtr                           #}
-{#pointer *alpm_event_pacnew_created_t     as AlpmEventPacnewCreatedPtr                         #}
-{#pointer *alpm_event_pacsave_created_t    as AlpmEventPacsaveCreatedPtr                        #}
-{#pointer *alpm_event_hook_t               as AlpmEventHookPtr                                  #}
-{#pointer *alpm_event_hook_run_t           as AlpmEventHookRunPtr                               #}
-{#pointer *alpm_event_pkg_retrieve_t       as AlpmEventPkgRetrievePtr                           #}
-{#pointer *alpm_file_t                     as AlpmFilePtr                                       #}
-{#pointer *alpm_fileconflict_t             as AlpmFileconflictPtr           -> AlpmFileconflict #}
-{#pointer *alpm_filelist_t                 as AlpmFilelistPtr                                   #}
-{#pointer *alpm_group_t                    as AlpmGroupPtr                  -> AlpmGroup        #}
-{#pointer *alpm_handle_t                   as AlpmHandlePtr                 newtype             #}
-{#pointer *alpm_list_t                     as AlpmListPtr                                       #}
-{#pointer *alpm_pkg_t                      as AlpmPkgPtr                    -> AlpmPkg          #}
-{#pointer *alpm_question_t                 as AlpmQuestionPtr               -> AlpmQuestion     #}
-{#pointer *alpm_question_select_provider_t as AlpmQuestionSelectProviderPtr                     #}
+{#pointer *alpm_backup_t                     as AlpmBackupPtr                                     #}
+{#pointer  alpm_cb_event                     as AlpmCbEventFunPtr                                 #}
+{#pointer  alpm_cb_question                  as AlpmCbQuestionFunPtr                              #}
+{#pointer *alpm_conflict_t                   as AlpmConflictPtr               -> AlpmConflict     #}
+{#pointer *alpm_db_t                         as AlpmDbPtr                                         #}
+{#pointer *alpm_depend_t                     as AlpmDependPtr                 -> AlpmDepend       #}
+{#pointer *alpm_depmissing_t                 as AlpmDepmissingPtr             -> AlpmDepmissing   #}
+{#pointer *alpm_errno_t                      as AlpmErrNoPtr                                      #}
+{#pointer *alpm_event_t                      as AlpmEventPtr                  -> AlpmEvent        #}
+{#pointer *alpm_event_package_operation_t    as AlpmEventPackageOperationPtr                      #}
+{#pointer *alpm_event_optdep_removal_t       as AlpmEventOptdepRemovalPtr                         #}
+{#pointer *alpm_event_scriptlet_info_t       as AlpmEventScriptletInfoPtr                         #}
+{#pointer *alpm_event_database_missing_t     as AlpmEventDatabaseMissingPtr                       #}
+{#pointer *alpm_event_pkgdownload_t          as AlpmEventPkgdownloadPtr                           #}
+{#pointer *alpm_event_pacnew_created_t       as AlpmEventPacnewCreatedPtr                         #}
+{#pointer *alpm_event_pacsave_created_t      as AlpmEventPacsaveCreatedPtr                        #}
+{#pointer *alpm_event_hook_t                 as AlpmEventHookPtr                                  #}
+{#pointer *alpm_event_hook_run_t             as AlpmEventHookRunPtr                               #}
+{#pointer *alpm_event_pkg_retrieve_t         as AlpmEventPkgRetrievePtr                           #}
+{#pointer *alpm_file_t                       as AlpmFilePtr                                       #}
+{#pointer *alpm_fileconflict_t               as AlpmFileconflictPtr           -> AlpmFileconflict #}
+{#pointer *alpm_filelist_t                   as AlpmFilelistPtr                                   #}
+{#pointer *alpm_group_t                      as AlpmGroupPtr                  -> AlpmGroup        #}
+{#pointer *alpm_handle_t                     as AlpmHandlePtr                 newtype             #}
+{#pointer *alpm_list_t                       as AlpmListPtr                                       #}
+{#pointer *alpm_pkg_t                        as AlpmPkgPtr                    -> AlpmPkg          #}
+{#pointer *alpm_question_t                   as AlpmQuestionPtr               -> AlpmQuestion     #}
+{#pointer *alpm_question_conflict_t          as AlpmQuestionConflictPtr                           #}
+{#pointer *alpm_question_corrupted_t         as AlpmQuestionCorruptedPtr                          #}
+{#pointer *alpm_question_import_key_t        as AlpmQuestionImportKeyPtr                          #}
+{#pointer *alpm_question_install_ignorepkg_t as AlpmQuestionInstallIgnorepkgPtr                   #}
+{#pointer *alpm_question_remove_pkgs_t       as AlpmQuestionRemovePkgsPtr                         #}
+{#pointer *alpm_question_replace_t           as AlpmQuestionReplacePtr                            #}
+{#pointer *alpm_question_select_provider_t   as AlpmQuestionSelectProviderPtr                     #}
 
 --------------------------------------------------------------------------------
 -- Handle
@@ -304,14 +339,62 @@ data family AlpmQuestionFor (a :: AlpmQuestionType) :: Type
 get__question_t__type :: AlpmQuestionPtr -> IO CInt
 get__question_t__type = {#get alpm_question_t->type #}
 
+set__question_conflict_t__remove :: AlpmQuestionConflictPtr -> CInt -> IO ()
+set__question_conflict_t__remove = {#set alpm_question_conflict_t->remove #}
+
+get__question_conflict_t__conflict :: AlpmQuestionConflictPtr -> IO AlpmConflictPtr
+get__question_conflict_t__conflict = {#get alpm_question_conflict_t->conflict #}
+
+set__question_corrupted_t__remove :: AlpmQuestionCorruptedPtr -> CInt -> IO ()
+set__question_corrupted_t__remove = {#set alpm_question_corrupted_t->remove #}
+
+get__question_corrupted_t__filepath :: AlpmQuestionCorruptedPtr -> IO CString
+get__question_corrupted_t__filepath = {#get alpm_question_corrupted_t->filepath #}
+
+get__question_corrupted_t__reason :: AlpmQuestionCorruptedPtr -> IO CInt
+get__question_corrupted_t__reason = {#get alpm_question_corrupted_t->reason #}
+
+set__question_import_key_t__import :: AlpmQuestionImportKeyPtr -> CInt -> IO ()
+set__question_import_key_t__import = {#set alpm_question_import_key_t->import #}
+
+get__question_import_key_t__uid :: AlpmQuestionImportKeyPtr -> IO CString
+get__question_import_key_t__uid = {#get alpm_question_import_key_t->uid #}
+
+get__question_import_key_t__fingerprint :: AlpmQuestionImportKeyPtr -> IO CString
+get__question_import_key_t__fingerprint = {#get alpm_question_import_key_t->fingerprint #}
+
+set__question_install_ignorepkg_t__install :: AlpmQuestionInstallIgnorepkgPtr -> CInt -> IO ()
+set__question_install_ignorepkg_t__install = {#set alpm_question_install_ignorepkg_t->install #}
+
+get__question_install_ignorepkg_t__pkg :: AlpmQuestionInstallIgnorepkgPtr -> IO AlpmPkgPtr
+get__question_install_ignorepkg_t__pkg = {#get alpm_question_install_ignorepkg_t->pkg #}
+
+set__question_remove_pkgs_t__skip :: AlpmQuestionRemovePkgsPtr -> CInt -> IO ()
+set__question_remove_pkgs_t__skip = {#set alpm_question_remove_pkgs_t->skip #}
+
+get__question_remove_pkgs_t__packages :: AlpmQuestionRemovePkgsPtr -> IO AlpmListPtr
+get__question_remove_pkgs_t__packages = {#get alpm_question_remove_pkgs_t->packages #}
+
+set__question_replace_t__replace :: AlpmQuestionReplacePtr -> CInt -> IO ()
+set__question_replace_t__replace = {#set alpm_question_replace_t->replace #}
+
+get__question_replace_t__oldpkg :: AlpmQuestionReplacePtr -> IO AlpmPkgPtr
+get__question_replace_t__oldpkg = {#get alpm_question_replace_t->oldpkg #}
+
+get__question_replace_t__newpkg :: AlpmQuestionReplacePtr -> IO AlpmPkgPtr
+get__question_replace_t__newpkg = {#get alpm_question_replace_t->newpkg #}
+
+get__question_replace_t__newdb :: AlpmQuestionReplacePtr -> IO AlpmDbPtr
+get__question_replace_t__newdb = {#get alpm_question_replace_t->newdb #}
+
+set__question_select_provider_t__use_index :: AlpmQuestionSelectProviderPtr -> CInt -> IO ()
+set__question_select_provider_t__use_index = {#set alpm_question_select_provider_t->use_index #}
+
 get__question_select_provider_t__depend :: AlpmQuestionSelectProviderPtr -> IO AlpmDependPtr
 get__question_select_provider_t__depend = {#get alpm_question_select_provider_t->depend #}
 
 get__question_select_provider_t__providers :: AlpmQuestionSelectProviderPtr -> IO AlpmListPtr
 get__question_select_provider_t__providers = {#get alpm_question_select_provider_t->providers #}
-
-set__question_select_provider_t__use_index :: AlpmQuestionSelectProviderPtr -> CInt -> IO ()
-set__question_select_provider_t__use_index = {#set alpm_question_select_provider_t->use_index #}
 
 --------------------------------------------------------------------------------
 -- Databases
